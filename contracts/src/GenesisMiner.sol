@@ -81,7 +81,6 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
     event ListingFilled(uint256 indexed tokenId, uint256 indexed listingId, address indexed seller, address buyer, uint256 price);
     event MarketFeeAccrued(uint256 indexed tokenId, uint256 indexed listingId, uint256 amount);
     event MarketFeesWithdrawn(address indexed recipient, uint256 amount);
-    event ProceedsWithdrawn(address indexed seller, address indexed recipient, uint256 amount);
     event SaleRevenueWithdrawn(address indexed recipient, uint256 amount, bool liquidity);
     event MintOpenChanged(bool open);
     event IdentityVerifierChanged(address indexed verifier);
@@ -98,11 +97,9 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
     uint256 public saleRevenue;
     uint256 public liquidityWithdrawn;
     uint256 public operationsWithdrawn;
-    uint256 public totalPendingProceeds;
     uint256 public marketFeeBalance;
     address public miningPool;
     uint256 public totalStakeLocks;
-    mapping(address => uint256) public pendingProceeds;
     mapping(uint256 => bool) public isStaked;
     mapping(uint256 => address) public stakedOwner;
     mapping(bytes32 => uint256) public mintedByAgent;
@@ -293,10 +290,10 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
         _removeListing(tokenId);
         uint256 fee = Math.mulDiv(l.price, MARKET_FEE_BPS, 10_000);
         uint256 sellerProceeds = l.price - fee;
-        pendingProceeds[l.seller] += sellerProceeds;
-        totalPendingProceeds += sellerProceeds;
         marketFeeBalance += fee;
         _safeTransfer(l.seller, msg.sender, tokenId);
+        (bool success,) = payable(l.seller).call{value: sellerProceeds}("");
+        if (!success) revert PaymentFailed();
         emit MarketFeeAccrued(tokenId, l.listingId, fee);
         emit ListingFilled(tokenId, l.listingId, l.seller, msg.sender, msg.value);
     }
@@ -333,17 +330,6 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
         _activeListings.pop();
         delete _activeIndex[tokenId];
         delete _listings[tokenId];
-    }
-
-    function withdrawProceeds(address payable recipient) external nonReentrant {
-        if (recipient == address(0) || recipient == address(this)) revert InvalidAddress();
-        uint256 amount = pendingProceeds[msg.sender];
-        if (amount == 0) revert NothingToWithdraw();
-        pendingProceeds[msg.sender] = 0;
-        totalPendingProceeds -= amount;
-        (bool success,) = recipient.call{value: amount}("");
-        if (!success) revert PaymentFailed();
-        emit ProceedsWithdrawn(msg.sender, recipient, amount);
     }
 
     function withdrawMarketFees(address payable recipient, uint256 amount) external onlyOwner nonReentrant {

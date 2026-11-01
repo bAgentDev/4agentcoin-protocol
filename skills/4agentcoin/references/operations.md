@@ -4,9 +4,9 @@
 
 ## 操作入口与支持边界
 
-同一份 Skill 覆盖资产和矿机查询、铸造、批量质押/解押、工作任务、NFT 转移和市场、售出款提现、4AGC 转账与买卖。用户用自然语言提出请求，Agent 按本参考选择真实合约调用及官方 BAW 能力；无需为每项业务另装一份 Skill。这不等于包内每项业务都有命令行实现，也不代表安装完成后已有生产地址、官方身份适配器、钱包授权或交易流动性。
+同一份 Skill 覆盖资产和矿机查询、铸造、批量质押/解押、工作任务、NFT 转移和市场、4AGC 转账与买卖。用户用自然语言提出请求，Agent 按本参考选择真实合约调用及官方 BAW 能力；无需为每项业务另装一份 Skill。这不等于包内每项业务都有命令行实现，也不代表安装完成后已有生产地址、官方身份适配器、钱包授权或交易流动性。
 
-查询资产时，读取官方钱包余额和已核实合约中的矿机所有权、HP、质押、有效订单及售出款余额。按用户请求限定链与钱包，不先索取 Agent ID；不能用本机运行器的 `status` 冒充完整资产查询。网页功能入口和显示开关不会改变合约权限；swap 链接可见也不证明已有可交易的流动性。
+查询资产时，读取官方钱包余额和已核实合约中的矿机所有权、HP、质押及有效订单。按用户请求限定链与钱包，不先索取 Agent ID；不能用本机运行器的 `status` 冒充完整资产查询。网页功能入口和显示开关不会改变合约权限；swap 链接可见也不证明已有可交易的流动性。
 
 ### 真正的包内 CLI
 
@@ -17,7 +17,7 @@
 | `node scripts/agent-miner.mjs dry-run --config miner.local.json` | 与 status 一样只读，不调模型、不做钱包 preview、不模拟或广播交易。 |
 | `node scripts/agent-miner.mjs run --config miner.local.json` | 对一台已质押 NFT，使用 Codex CLI 模型，在已授权边界内完成单项或有限连续工作。 |
 
-`npm run miner -- <模式> --config miner.local.json` 是同一脚本的 npm 入口。包内没有 mint、stake、unstake、transfer、list、buy、cancel、withdraw、swap 或 stop 子命令，也没有对应斜杠指令。铸造、批量质押和其他资产操作由 Agent 依本参考组织调用，不是运行器代办的前置步骤。运行器不支持多 NFT 轮转或其他模型宿主；目前未完成真实付费模型和 BAW 广播的端到端验收，不能声称已通过生产使用验证。
+`npm run miner -- <模式> --config miner.local.json` 是同一脚本的 npm 入口。包内没有 mint、stake、unstake、transfer、list、buy、cancel、swap 或 stop 子命令，也没有对应斜杠指令。铸造、批量质押和其他资产操作由 Agent 依本参考组织调用，不是运行器代办的前置步骤。运行器不支持多 NFT 轮转或其他模型宿主；目前未完成真实付费模型和 BAW 广播的端到端验收，不能声称已通过生产使用验证。
 
 ## 部署与运行器
 
@@ -104,13 +104,13 @@ unstake对原staker开放，即使工作任务暂停或身份失效；没有待�
 
 ## 创世矿机市场
 
-NFT市场/转移/提现不要求Agent ID。内置接口 `list(tokenId,priceWei)`、`cancel(tokenId)`、`buy(tokenId,expectedListingId,expectedPrice)`、`withdrawProceeds(recipient)`，读getListing/getActiveListings。仅持有人、未质押、HP固定可挂牌；内置市场无需额外NFT全量授权。
+NFT市场/转移不要求Agent ID。内置接口 `list(tokenId,priceWei)`、`cancel(tokenId)`、`buy(tokenId,expectedListingId,expectedPrice)`，读getListing/getActiveListings。仅持有人、未质押、HP固定可挂牌；内置市场无需额外NFT全量授权。
 
-买入value必须等于expectedPrice，其余value=0。用户指定最高价时，当前成交价必须不高于该上限，链上expectedPrice仍填写本次核实的精确价格。回链核对seller、listingId、价格、所有权、HP；订单或价格改变需重新预览确认，不自动接受新价。成交BNB内扣5%，卖家pendingProceeds增加95%，管理员marketFeeBalance独立记账。1BNB例：买家支付1，卖家余额加0.95，市场费0.05；余额不是已转款。withdrawProceeds不再扣市场费，核对接收人和余额；挂牌/撤单无协议费、gas另计。
+买入value必须等于expectedPrice，其余value=0。用户指定最高价时，当前成交价必须不高于该上限，链上expectedPrice仍填写本次核实的精确价格。回链核对seller、listingId、价格、所有权、HP；订单或价格改变需重新预览确认，不自动接受新价。成交BNB内扣5%市场费、向下取整后留在合约并由marketFeeBalance独立记账，余款在同一笔buy中直接支付seller，无需卖家另行领取。1BNB例：买家支付1，卖家直接收到0.95，合约留存市场费0.05。卖家收款失败或买家NFT接收失败，整笔buy回滚，付款、NFT归属、挂牌和市场费记录均不生效，但交易仍消耗gas。挂牌/撤单无协议费、gas另计。
 
 转移用真实ERC721 safeTransferFrom重载，确认from/to/tokenId；approval同样需预览确认，不默认全量/无限授权。已质押先原staker解押。转移不重抽、不恢复mint额度。
 
-创世售款50%LP预算、50%运营；全售39.69BNB，两项各19.845。预算不代表已加池，要核实真实储备和LP归属。卖家余额、管理员市场费和售款分别核算；普通请求不推导管理员划款权限。
+创世售款50%LP预算、50%运营；全售39.69BNB，两项各19.845。预算不代表已加池，要核实真实储备和LP归属。管理员市场费和售款分别核算；普通请求不推导管理员划款权限。
 
 ## 代币交易与追踪
 
@@ -118,7 +118,7 @@ NFT市场/转移/提现不要求Agent ID。内置接口 `list(tokenId,priceWei)`
 
 优先官方BAW market-order quote/swap；构命令前读其实际market-order参考并做安全检查。税币兼容的自定义Router调用走External Sign。展示完整输入/输出地址、数量、最小到账、项目税、AMM费、工具费（如有）、gas、滑点、期限；不能猜税币支持。条件买卖用实际限价能力，失败不能静默改立即市价。
 
-转账用官方钱包真实send，按token/decimals确认接收人和数额，不要求身份。查询入口之一为 `baw wallet tx-history --tx <hash> --binanceChainId <chain> --json`。原hash、真实回执和最终资产变化决定成功；App待确认/广播/超时不是成功，不能重复mint、买入、提交工作证明或提现。
+转账用官方钱包真实send，按token/decimals确认接收人和数额，不要求身份。查询入口之一为 `baw wallet tx-history --tx <hash> --binanceChainId <chain> --json`。原hash、真实回执和最终资产变化决定成功；App待确认/广播/超时不是成功，不能重复mint、买入或提交工作证明。
 
 ## 钱包执行与分发
 

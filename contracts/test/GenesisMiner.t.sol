@@ -6,7 +6,7 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Bytes} from "@openzeppelin/contracts/utils/Bytes.sol";
 import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {GenesisMiner} from "../src/GenesisMiner.sol";
-import {MockIdentityVerifier, InspectingMintReceiver, MockMiningPool, RejectingSeller, RejectingBuyer, ReenteringSeller} from "./Mocks.sol";
+import {MockIdentityVerifier, InspectingMintReceiver, MockMiningPool, RejectingSeller, PayableSeller, RejectingBuyer, ReenteringSeller} from "./Mocks.sol";
 
 contract GenesisMinerTest is Test {
     GenesisMiner internal miner;
@@ -307,26 +307,37 @@ contract GenesisMinerTest is Test {
         assertEq(miner.totalAllocated(), 2100);
     }
 
-    function testMarketDoesNotRequireAgentIdAndUsesPullPayout() public {
+    function testMarketDoesNotRequireAgentIdAndPaysSellerImmediately() public {
         _ready(0, alice);
         uint256 listing = _list(0, 1 ether);
+        assertFalse(identity.eligible(alice));
         assertFalse(identity.eligible(bob));
+        uint256 sellerBefore = alice.balance;
+        uint256 buyerBefore = bob.balance;
         vm.prank(bob);
         miner.buy{value: 1 ether}(0, listing, 1 ether);
         assertEq(miner.ownerOf(0), bob);
-        assertEq(miner.pendingProceeds(alice), 0.95 ether);
-        assertEq(miner.totalPendingProceeds(), 0.95 ether);
+        assertEq(alice.balance - sellerBefore, 0.95 ether);
+        assertEq(buyerBefore - bob.balance, 1 ether);
         assertEq(miner.marketFeeBalance(), 0.05 ether);
         assertEq(miner.saleRevenue(), 0);
-        uint256 before = alice.balance;
-        vm.prank(alice);
-        miner.withdrawProceeds(payable(alice));
-        assertEq(alice.balance - before, 0.95 ether);
-        assertEq(miner.pendingProceeds(alice), 0);
         assertEq(address(miner).balance, 0.05 ether);
-        vm.prank(alice);
-        vm.expectRevert(GenesisMiner.NothingToWithdraw.selector);
-        miner.withdrawProceeds(payable(alice));
+        assertFalse(miner.getListing(0).active);
+    }
+
+    function testMarketPaysPayableContractSellerImmediately() public {
+        PayableSeller seller = new PayableSeller();
+        vm.prank(admin);
+        miner.safeTransferFrom(admin, address(seller), 0);
+        seller.listMiner(miner, 0, 1 ether);
+        uint256 listing = miner.getListing(0).listingId;
+        vm.prank(bob);
+        miner.buy{value: 1 ether}(0, listing, 1 ether);
+        assertEq(miner.ownerOf(0), bob);
+        assertEq(address(seller).balance, 0.95 ether);
+        assertEq(seller.received(), 0.95 ether);
+        assertEq(miner.marketFeeBalance(), 0.05 ether);
+        assertEq(address(miner).balance, 0.05 ether);
     }
 
     function testExpectedListingAndExactPricePreventStaleOrder() public {
@@ -554,70 +565,141 @@ contract GenesisMinerTest is Test {
         miner.getActiveListings(0, 101);
     }
 
-    function testRejectingSellerDoesNotBlockBuyAndFailedWithdrawalRestoresCredit() public {
+    function testRejectingSellerRollsBackPaymentNFTListingAndFees() public {
+        _open();
+        vm.prank(alice);
+        miner.mint{value: PRICE}(bytes32(0));
+        _ready(1, alice);
+        uint256 priorListing = _list(1, 0.2 ether);
+        vm.prank(bob);
+        miner.buy{value: 0.2 ether}(1, priorListing, 0.2 ether);
         RejectingSeller seller = new RejectingSeller();
         vm.prank(admin);
         miner.safeTransferFrom(admin, address(seller), 0);
         seller.listMiner(miner, 0, 1 ether);
         uint256 listing = miner.getListing(0).listingId;
+        uint256 buyerBefore = bob.balance;
+        uint256 sellerBefore = address(seller).balance;
+        uint256 contractBefore = address(miner).balance;
         vm.prank(bob);
-        miner.buy{value: 1 ether}(0, listing, 1 ether);
-        assertEq(miner.pendingProceeds(address(seller)), 0.95 ether);
         vm.expectRevert(GenesisMiner.PaymentFailed.selector);
-        seller.withdraw(miner, payable(address(seller)));
-        assertEq(miner.pendingProceeds(address(seller)), 0.95 ether);
-        assertEq(miner.marketFeeBalance(), 0.05 ether);
-        uint256 before = alice.balance;
-        seller.withdraw(miner, payable(alice));
-        assertEq(alice.balance - before, 0.95 ether);
+        miner.buy{value: 1 ether}(0, listing, 1 ether);
+        assertEq(bob.balance, buyerBefore);
+        assertEq(address(seller).balance, sellerBefore);
+        assertEq(address(miner).balance, contractBefore);
+        assertEq(miner.ownerOf(0), address(seller));
+        GenesisMiner.Listing memory restored = miner.getListing(0);
+        assertTrue(restored.active);
+        assertEq(restored.listingId, listing);
+        assertEq(restored.seller, address(seller));
+        assertEq(restored.price, 1 ether);
+        (GenesisMiner.MarketListing[] memory rows, uint256 total) = miner.getActiveListings(0, 100);
+        assertEq(total, 1);
+        assertEq(rows.length, 1);
+        assertEq(rows[0].tokenId, 0);
+        assertEq(rows[0].listingId, listing);
+        assertEq(miner.marketFeeBalance(), 0.01 ether);
+        assertEq(miner.saleRevenue(), PRICE);
     }
 
-    function testRejectingBuyerRollsBackListingAndCredits() public {
+    function testRejectingBuyerRollsBackPaymentNFTListingAndFees() public {
+        _open();
+        vm.prank(alice);
+        miner.mint{value: PRICE}(bytes32(0));
         _ready(0, alice);
         uint256 listing = _list(0, 1 ether);
         RejectingBuyer buyer = new RejectingBuyer();
+        uint256 payerBefore = address(this).balance;
+        uint256 sellerBefore = alice.balance;
         vm.expectRevert("buyer rejects NFT");
         buyer.buyMiner{value: 1 ether}(miner, 0, listing, 1 ether);
+        assertEq(address(this).balance, payerBefore);
+        assertEq(address(buyer).balance, 0);
+        assertEq(alice.balance, sellerBefore);
+        assertEq(address(miner).balance, PRICE);
         assertEq(miner.ownerOf(0), alice);
-        assertTrue(miner.getListing(0).active);
-        assertEq(miner.totalPendingProceeds(), 0);
+        GenesisMiner.Listing memory restored = miner.getListing(0);
+        assertTrue(restored.active);
+        assertEq(restored.listingId, listing);
+        assertEq(restored.seller, alice);
+        assertEq(restored.price, 1 ether);
+        (GenesisMiner.MarketListing[] memory rows, uint256 total) = miner.getActiveListings(0, 100);
+        assertEq(total, 1);
+        assertEq(rows.length, 1);
+        assertEq(rows[0].tokenId, 0);
+        assertEq(rows[0].listingId, listing);
         assertEq(miner.marketFeeBalance(), 0);
+        assertEq(miner.saleRevenue(), PRICE);
     }
 
-    function testWithdrawalReentryCannotDrainOtherCredits() public {
+    function testSellerPaymentReentryCannotBuyValidSecondListing() public {
+        _open();
+        vm.prank(alice);
+        miner.mint{value: PRICE}(bytes32(0));
         ReenteringSeller seller = new ReenteringSeller(miner);
         vm.prank(admin);
         miner.safeTransferFrom(admin, address(seller), 0);
         seller.listMiner(0, 1 ether);
         uint256 listing = miner.getListing(0).listingId;
+        _ready(1, alice);
+        uint256 targetListing = _list(1, 0.5 ether);
+        seller.setTarget(1, targetListing, 0.5 ether);
+        uint256 targetSellerBefore = alice.balance;
         vm.prank(bob);
         miner.buy{value: 1 ether}(0, listing, 1 ether);
-        seller.withdraw();
         assertTrue(seller.reentryBlocked());
+        assertEq(seller.reentryError(), bytes4(keccak256("ReentrancyGuardReentrantCall()")));
         assertEq(address(seller).balance, 0.95 ether);
-        assertEq(miner.totalPendingProceeds(), 0);
+        assertEq(miner.ownerOf(0), bob);
+        assertEq(miner.ownerOf(1), alice);
+        assertTrue(miner.getListing(1).active);
+        assertEq(miner.getListing(1).listingId, targetListing);
+        assertEq(alice.balance, targetSellerBefore);
         assertEq(miner.marketFeeBalance(), 0.05 ether);
+        assertEq(miner.saleRevenue(), PRICE);
+        assertEq(address(miner).balance, PRICE + 0.05 ether);
+        // The same funded call and listing succeed after the first buy has finished.
+        seller.buyTarget();
+        assertEq(miner.ownerOf(1), address(seller));
+        assertEq(address(seller).balance, 0.45 ether);
+        assertEq(alice.balance - targetSellerBefore, 0.475 ether);
+        assertEq(miner.marketFeeBalance(), 0.075 ether);
+        assertEq(address(miner).balance, PRICE + 0.075 ether);
     }
 
-    function testRevenueBudgetsCannotTouchSellerProceeds() public {
+    function testRevenueBudgetsCannotTouchMarketFees() public {
         _open();
         vm.prank(alice);
         miner.mint{value: PRICE}(bytes32(0));
         _ready(0, alice);
         uint256 listing = _list(0, 5 ether);
+        uint256 sellerBefore = alice.balance;
         vm.prank(bob);
         miner.buy{value: 5 ether}(0, listing, 5 ether);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", alice));
+        miner.withdrawSaleRevenue(payable(alice), PRICE / 4, true);
+        RejectingSeller recipient = new RejectingSeller();
+        uint256 adminBefore = admin.balance;
         vm.startPrank(admin);
         vm.expectRevert(GenesisMiner.InsufficientRevenue.selector);
         miner.withdrawSaleRevenue(payable(admin), PRICE, true);
-        miner.withdrawSaleRevenue(payable(admin), PRICE / 2, true);
-        miner.withdrawSaleRevenue(payable(admin), PRICE / 2, false);
+        vm.expectRevert(GenesisMiner.PaymentFailed.selector);
+        miner.withdrawSaleRevenue(payable(address(recipient)), PRICE / 4, true);
+        assertEq(miner.liquidityWithdrawn(), 0);
+        assertEq(address(miner).balance, PRICE + 0.25 ether);
+        miner.withdrawSaleRevenue(payable(admin), PRICE / 4, true);
+        miner.withdrawSaleRevenue(payable(admin), PRICE / 4, true);
+        miner.withdrawSaleRevenue(payable(admin), PRICE / 4, false);
+        miner.withdrawSaleRevenue(payable(admin), PRICE / 4, false);
         vm.expectRevert(GenesisMiner.InsufficientRevenue.selector);
         miner.withdrawSaleRevenue(payable(admin), 1, false);
         vm.stopPrank();
-        assertEq(address(miner).balance, 5 ether);
-        assertEq(miner.totalPendingProceeds(), 4.75 ether);
-        assertEq(miner.pendingProceeds(alice), 4.75 ether);
+        assertEq(admin.balance - adminBefore, PRICE);
+        assertEq(miner.liquidityWithdrawn(), PRICE / 2);
+        assertEq(miner.operationsWithdrawn(), PRICE / 2);
+        assertEq(alice.balance - sellerBefore, 4.75 ether);
+        assertEq(address(miner).balance, 0.25 ether);
         assertEq(miner.marketFeeBalance(), 0.25 ether);
     }
 
@@ -625,16 +707,14 @@ contract GenesisMinerTest is Test {
         uint256 price = bound(uint256(rawPrice), 1, 50 ether);
         _ready(0, alice);
         uint256 listing = _list(0, price);
-        uint256 before = bob.balance;
+        uint256 buyerBefore = bob.balance;
+        uint256 sellerBefore = alice.balance;
         vm.prank(bob);
         miner.buy{value: price}(0, listing, price);
-        assertEq(before - bob.balance, price);
-        assertEq(address(miner).balance, price);
         uint256 expectedFee = price * 500 / 10_000;
-        assertEq(miner.totalPendingProceeds(), price - expectedFee);
+        assertEq(buyerBefore - bob.balance, price);
+        assertEq(alice.balance - sellerBefore, price - expectedFee);
         assertEq(miner.marketFeeBalance(), expectedFee);
-        vm.prank(alice);
-        miner.withdrawProceeds(payable(alice));
         assertEq(address(miner).balance, expectedFee);
     }
 
@@ -645,11 +725,11 @@ contract GenesisMinerTest is Test {
         vm.prank(alice);
         miner.cancel(0);
         assertEq(miner.marketFeeBalance(), 0);
-        assertEq(miner.totalPendingProceeds(), 0);
         assertEq(address(miner).balance, 0);
         uint256[5] memory prices = [uint256(1), 19, 20, 21, 101];
         uint256 totalPrice;
         uint256 totalFee;
+        uint256 sellerBefore = alice.balance;
         for (uint256 i; i < prices.length; ++i) {
             if (i != 0) _ready(i, alice);
             uint256 listing = _list(i, prices[i]);
@@ -665,18 +745,18 @@ contract GenesisMinerTest is Test {
         }
         assertEq(totalFee, 7);
         assertEq(miner.marketFeeBalance(), totalFee);
-        assertEq(miner.pendingProceeds(alice), totalPrice - totalFee);
-        assertEq(miner.totalPendingProceeds(), totalPrice - totalFee);
-        assertEq(address(miner).balance, totalPrice);
+        assertEq(alice.balance - sellerBefore, totalPrice - totalFee);
+        assertEq(address(miner).balance, totalFee);
         assertEq(miner.saleRevenue(), 0);
     }
 
-    function testMarketFeesRemainSeparateFromSellerCreditsAndSaleRevenue() public {
+    function testMarketFeesRemainSeparateFromDirectSellerPaymentAndSaleRevenue() public {
         _open();
         vm.prank(alice);
         miner.mint{value: PRICE}(bytes32(0));
         _ready(0, alice);
         uint256 listing = _list(0, 1 ether);
+        uint256 sellerBefore = alice.balance;
         vm.prank(bob);
         miner.buy{value: 1 ether}(0, listing, 1 ether);
         vm.startPrank(admin);
@@ -685,9 +765,8 @@ contract GenesisMinerTest is Test {
         miner.withdrawMarketFees(payable(admin), 0.05 ether);
         assertEq(miner.marketFeeBalance(), 0);
         assertEq(miner.saleRevenue(), PRICE);
-        assertEq(miner.pendingProceeds(alice), 0.95 ether);
-        assertEq(miner.totalPendingProceeds(), 0.95 ether);
-        assertEq(address(miner).balance, 0.95 ether + PRICE);
+        assertEq(alice.balance - sellerBefore, 0.95 ether);
+        assertEq(address(miner).balance, PRICE);
         vm.expectRevert(GenesisMiner.InsufficientMarketFees.selector);
         miner.withdrawMarketFees(payable(admin), 1);
         miner.withdrawSaleRevenue(payable(admin), PRICE / 2, true);
@@ -695,16 +774,14 @@ contract GenesisMinerTest is Test {
         vm.expectRevert(GenesisMiner.InsufficientRevenue.selector);
         miner.withdrawSaleRevenue(payable(admin), 1, true);
         vm.stopPrank();
-        assertEq(address(miner).balance, 0.95 ether);
-        vm.prank(alice);
-        miner.withdrawProceeds(payable(alice));
         assertEq(address(miner).balance, 0);
-        assertEq(miner.totalPendingProceeds(), 0);
+        assertEq(alice.balance - sellerBefore, 0.95 ether);
     }
 
     function testMarketFeeWithdrawalAuthorizationValidationAndFailedPayment() public {
         _ready(0, alice);
         uint256 listing = _list(0, 1 ether);
+        uint256 sellerBefore = alice.balance;
         vm.prank(bob);
         miner.buy{value: 1 ether}(0, listing, 1 ether);
         vm.prank(alice);
@@ -723,7 +800,7 @@ contract GenesisMinerTest is Test {
         vm.expectRevert(GenesisMiner.PaymentFailed.selector);
         miner.withdrawMarketFees(payable(address(recipient)), 0.05 ether);
         assertEq(miner.marketFeeBalance(), 0.05 ether);
-        assertEq(address(miner).balance, 1 ether);
+        assertEq(address(miner).balance, 0.05 ether);
         uint256 before = admin.balance;
         vm.expectEmit(true, false, false, true, address(miner));
         emit GenesisMiner.MarketFeesWithdrawn(admin, 0.02 ether);
@@ -731,13 +808,14 @@ contract GenesisMinerTest is Test {
         vm.stopPrank();
         assertEq(admin.balance - before, 0.02 ether);
         assertEq(miner.marketFeeBalance(), 0.03 ether);
-        assertEq(miner.pendingProceeds(alice), 0.95 ether);
-        assertEq(miner.totalPendingProceeds(), 0.95 ether);
+        assertEq(alice.balance - sellerBefore, 0.95 ether);
+        assertEq(address(miner).balance, 0.03 ether);
     }
 
     function testMarketFeeWithdrawalReentryCannotCollectTwice() public {
         _ready(0, alice);
         uint256 listing = _list(0, 1 ether);
+        uint256 sellerBefore = alice.balance;
         vm.prank(bob);
         miner.buy{value: 1 ether}(0, listing, 1 ether);
         ReenteringFeeOwner feeOwner = new ReenteringFeeOwner(miner);
@@ -748,8 +826,8 @@ contract GenesisMinerTest is Test {
         assertTrue(feeOwner.reentryBlocked());
         assertEq(address(feeOwner).balance, 0.025 ether);
         assertEq(miner.marketFeeBalance(), 0.025 ether);
-        assertEq(miner.pendingProceeds(alice), 0.95 ether);
-        assertEq(address(miner).balance, 0.975 ether);
+        assertEq(alice.balance - sellerBefore, 0.95 ether);
+        assertEq(address(miner).balance, 0.025 ether);
     }
 
     function testBatchBonusAndStableIdentityLifetimeCap() public {

@@ -17,6 +17,8 @@ The three core contracts are:
 - `FourAgentCoin`: the 4AGC token, with a 21,000,000 token cap, initial liquidity allocation and restricted mining issuance.
 - `MiningPool`: noncustodial staking, per-miner tasks, answer verification and immediate reward minting. Holding or staking alone earns no rewards.
 
+The NFT marketplace settles in BNB. A purchase pays the seller the price minus the 5% market fee directly, with the fee rounded down to whole wei and retained in the contract for administrator withdrawal. No seller withdrawal step is required. Failed seller payment or NFT receipt reverts the entire purchase, including payment, ownership, listing and fee changes; gas is still spent. Primary mint revenue remains separately accounted for under the existing 50/50 LP and operations budgets.
+
 `AgentTaskVerifier` is an internal pure-computation library used by the pool, not a fourth core deployment. It generates and checks a 16-object, four-slot resource-allocation task. The contract verifies the submitted constraints; it cannot prove that an LLM produced the answer or prevent programs from producing valid answers.
 
 Public miner power combines a client-provided random salt with onchain context. Callers can search salts and influence transaction timing, and block producers can influence the context. This is not manipulation-resistant or verifiably fair randomness.
@@ -46,7 +48,7 @@ forge build --root "$PWD/contracts"
 forge test --root "$PWD/contracts"
 ```
 
-The current contract regression suite has 53 tests. These commands require no wallet, RPC, private key or deployment transaction. Installed dependencies and generated artifacts are ignored by Git.
+The current contract regression suite has 54 tests. These commands require no wallet, RPC, private key or deployment transaction. Installed dependencies and generated artifacts are ignored by Git.
 
 Deployment and local demonstration scripts are included under `contracts/script/`. Building a script does not execute or broadcast it. Production scripts keep protocol gates closed and require independently verified identity and metadata inputs; their presence does not mean production prerequisites are complete.
 

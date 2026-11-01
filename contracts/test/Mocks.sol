@@ -35,8 +35,16 @@ contract RejectingSeller is IERC721Receiver {
         return IERC721Receiver.onERC721Received.selector;
     }
     function listMiner(GenesisMiner miner, uint256 id, uint256 price) external { miner.list(id, price); }
-    function withdraw(GenesisMiner miner, address payable recipient) external { miner.withdrawProceeds(recipient); }
     receive() external payable { revert("seller rejects native transfer"); }
+}
+
+contract PayableSeller is IERC721Receiver {
+    uint256 public received;
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    }
+    function listMiner(GenesisMiner miner, uint256 id, uint256 price) external { miner.list(id, price); }
+    receive() external payable { received += msg.value; }
 }
 
 contract RejectingBuyer is IERC721Receiver {
@@ -51,15 +59,24 @@ contract RejectingBuyer is IERC721Receiver {
 contract ReenteringSeller is IERC721Receiver {
     GenesisMiner public immutable miner;
     bool public reentryBlocked;
+    bytes4 public reentryError;
+    uint256 private targetTokenId;
+    uint256 private targetListingId;
+    uint256 private targetPrice;
     constructor(GenesisMiner target) { miner = target; }
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
     function listMiner(uint256 id, uint256 price) external { miner.list(id, price); }
-    function withdraw() external { miner.withdrawProceeds(payable(address(this))); }
+    function setTarget(uint256 id, uint256 listingId, uint256 price) external {
+        targetTokenId = id;
+        targetListingId = listingId;
+        targetPrice = price;
+    }
+    function buyTarget() external { miner.buy{value: targetPrice}(targetTokenId, targetListingId, targetPrice); }
     receive() external payable {
-        try miner.withdrawProceeds(payable(address(this))) { reentryBlocked = false; }
-        catch { reentryBlocked = true; }
+        try miner.buy{value: targetPrice}(targetTokenId, targetListingId, targetPrice) { reentryBlocked = false; }
+        catch (bytes memory reason) { reentryBlocked = true; reentryError = bytes4(reason); }
     }
 }
 
