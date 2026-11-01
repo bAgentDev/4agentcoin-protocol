@@ -1,27 +1,27 @@
 {
   "environment": "bsc",
   "chainId": 56,
-  "rpcUrl": "https://bsc-dataseed.bnbchain.org",
+  "rpcUrl": "https://bsc-rpc.publicnode.com",
   "walletAddress": null,
-  "poolAddress": null,
-  "genesisAddress": null,
-  "tokenAddress": null,
+  "poolAddress": "0xa12a9112361bab1411e64891da7481deaf9cff59",
+  "genesisAddress": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+  "tokenAddress": "0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4",
   "tokenId": "0",
   "deployment": {
-    "verified": false,
+    "verified": true,
     "localMocks": false,
-    "identityVerifier": null,
-    "codeHashes": { "pool": null, "genesis": null, "token": null, "identityVerifier": null },
+    "identityVerifier": "0xf9c3e5de50da00c9b35670b4418205b1a0527dbf",
+    "codeHashes": { "pool": "0xde1155bf59f1faeed0b53a904a258ce602d5e2cef4b36526d126c8367f0ead8f", "genesis": "0xde1155bf59f1faeed0b53a904a258ce602d5e2cef4b36526d126c8367f0ead8f", "token": "0xb52da27e13e1eebb95886293d2150ddebfa3b6df76177cdee51a64699a959d8f", "identityVerifier": "0x05c63977d6ec80fed66b3360c0042fb49c488821bd8955cf061453ba62580797" },
     "proxies": {
-      "genesis": { "implementationAddress": null, "implementationCodeHash": null },
-      "pool": { "implementationAddress": null, "implementationCodeHash": null }
+      "genesis": { "implementationAddress": "0xc6af5ebf9354259c99dfb3601f29ea433c77456e", "implementationCodeHash": "0x779717a7b9983a0cb6af4d848bd8ad096710deba5572018ad7f9f138e3ac445d" },
+      "pool": { "implementationAddress": "0x84c4c0293c01c0abeb52992c478ead352fcc67fe", "implementationCodeHash": "0xd53cd0bceeff14aa9ace9f6d9ecd8d475d51c3a57da994d4baba79e1acdbe106" }
     },
     "verifiedIdentitySource": {
       "verified": true,
       "chainId": 56,
       "officialUrl": "https://web3.binance.com/en/dev-docs/products/agentic-wallet/ai-pro#came-from-the-agent-id-campaign",
-      "verifiedAt": "2026-11-01T21:55:28+08:00",
-      "verificationEvidence": "Official Binance helper identifies OpenFour registry and preset 1778027615735. Core.tokens(KEEP) confirms the preset and trade module; local eth_call trace of official Tools.estimateBuy resolves 0x8238589B02cc9349bcd46e76981Ef2c8A16eC5a8 selector 0xbfa325ba to this Agent ID registry and calls balanceOf. Public holder succeeds; address 0x0000000000000000000000000000000000000123 fails with official NO_AGENT_ID selector 0x96ea0b74. Sourcify v2 exact creation/runtime match plus byte-for-byte current runtime verification establishes HandleRegistry ABI and permanent bare-handle tokenId semantics. No live project deployment or adapter binding is inferred from this source evidence.",
+      "verifiedAt": "2026-11-01T22:26:37+08:00",
+      "verificationEvidence": "Official Binance helper identifies OpenFour registry and preset 1778027615735. Core.tokens(KEEP) confirms the preset and trade module; local eth_call trace of official Tools.estimateBuy resolves 0x8238589B02cc9349bcd46e76981Ef2c8A16eC5a8 selector 0xbfa325ba to this Agent ID registry and calls balanceOf. Public holder succeeds; address 0x0000000000000000000000000000000000000123 fails with official NO_AGENT_ID selector 0x96ea0b74. Sourcify v2 exact creation/runtime match plus byte-for-byte current runtime verification establishes HandleRegistry ABI and permanent bare-handle tokenId semantics. No live project deployment or adapter binding is inferred from this source evidence. Project adapter and all core addresses are now deployed on BSC; canonical transaction payloads, runtime hashes, actual registry binding and positive/negative identity reads were independently verified. Public deployment receipts are recorded in config/deployments.bsc.json.",
       "registryAddress": "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F",
       "registryCodeHash": "0xc4006e6e6ffaaf6996116617392beabe4f5f0a0795841322f91c2ceac34d6ace",
       "adapterRegistryRead": {
@@ -56,7 +56,7 @@
     "mode": "single",
     "skipRepeatedConfirmations": false,
     "chainId": 56,
-    "poolAddress": null,
+    "poolAddress": "0xa12a9112361bab1411e64891da7481deaf9cff59",
     "walletAddress": null,
     "tokenId": "0",
     "maxTasks": 1,

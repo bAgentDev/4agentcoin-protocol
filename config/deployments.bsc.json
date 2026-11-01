@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "enabled": false,
+  "enabled": true,
   "chainId": 56,
-  "status": "identity_adapter_implemented_and_verified_awaiting_local_signature_no_mainnet_deployment",
+  "status": "mainnet_deployed_state_verified_all_gates_closed_no_lp",
   "roles": {
     "admin": "0x4a395c91484544cec82424cc23af20239feea2d4",
     "reserveRecipient": "0x4a395c91484544cec82424cc23af20239feea2d4",
@@ -13,28 +13,31 @@
   },
   "contracts": {
     "genesis": {
-      "address": "0x0000000000000000000000000000000000000000",
-      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "implementationAddress": "0x0000000000000000000000000000000000000000",
-      "implementationCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "address": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+      "codeHash": "0xde1155bf59f1faeed0b53a904a258ce602d5e2cef4b36526d126c8367f0ead8f",
+      "implementationAddress": "0xc6af5ebf9354259c99dfb3601f29ea433c77456e",
+      "implementationCodeHash": "0x779717a7b9983a0cb6af4d848bd8ad096710deba5572018ad7f9f138e3ac445d",
+      "deploymentBlockNumber": 131063853
     },
     "token": {
-      "address": "0x0000000000000000000000000000000000000000",
-      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "address": "0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4",
+      "codeHash": "0xb52da27e13e1eebb95886293d2150ddebfa3b6df76177cdee51a64699a959d8f",
+      "deploymentBlockNumber": 131063860
     },
     "pool": {
-      "address": "0x0000000000000000000000000000000000000000",
-      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "implementationAddress": "0x0000000000000000000000000000000000000000",
-      "implementationCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "address": "0xa12a9112361bab1411e64891da7481deaf9cff59",
+      "codeHash": "0xde1155bf59f1faeed0b53a904a258ce602d5e2cef4b36526d126c8367f0ead8f",
+      "implementationAddress": "0x84c4c0293c01c0abeb52992c478ead352fcc67fe",
+      "implementationCodeHash": "0xd53cd0bceeff14aa9ace9f6d9ecd8d475d51c3a57da994d4baba79e1acdbe106",
+      "deploymentBlockNumber": 131063870
     }
   },
   "identity": {
     "verified": true,
     "stableAgentIdSemanticsVerified": true,
-    "adapterRegistryBindingVerified": false,
-    "adapterAddress": "0x0000000000000000000000000000000000000000",
-    "adapterCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "adapterRegistryBindingVerified": true,
+    "adapterAddress": "0xf9c3e5de50da00c9b35670b4418205b1a0527dbf",
+    "adapterCodeHash": "0x05c63977d6ec80fed66b3360c0042fb49c488821bd8955cf061453ba62580797",
     "registryAddress": "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F",
     "registryCodeHash": "0xc4006e6e6ffaaf6996116617392beabe4f5f0a0795841322f91c2ceac34d6ace",
     "adapterRegistrySelector": "0x7b103999",
@@ -200,7 +203,8 @@
         "productionTransactionsSent": false
       },
       "snapshotScope": "observedBlockNumber/hash describe registry runtime; officialGate and projectForkValidation retain their own observed blocks"
-    }
+    },
+    "adapterBindingVerifiedAt": "2026-11-01T22:26:37+08:00"
   },
   "pancake": {
     "verified": true,
@@ -363,8 +367,9 @@
       "notFinalBroadcastQuote": true,
       "supersededByEightTransactionDeploymentSimulation": true
     },
-    "status": "eight_transaction_mainnet_simulation_passed; no_broadcast_receipts; LP_initialization_budget_remains_separate",
-    "estimatedScope": "real identity adapter plus seven core deployment/binding transactions only; future LP actions estimated separately"
+    "status": "actual_eight_transaction_deployment_fee_verified; LP_initialization_remains_separate",
+    "estimatedScope": "real identity adapter plus seven core deployment/binding transactions only; future LP actions estimated separately",
+    "actualDeploymentNetworkFeeWei": "438054150000000"
   },
   "upgrade": {
     "enabled": false,
@@ -377,7 +382,7 @@
     "storageValidationReportHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
   },
   "deploymentPlan": {
-    "status": "simulated_not_broadcast",
+    "status": "broadcast_confirmed_payloads_match_reviewed_plan",
     "chainId": 56,
     "administrator": "0x4a395c91484544cec82424cc23af20239feea2d4",
     "expectedStartNonce": 0,
@@ -388,8 +393,8 @@
     "estimatedMaximumNetworkFeeWei": "657592150000000",
     "allTransactionValuesWei": "0",
     "liquidityPrincipalIncluded": false,
-    "productionTransactionsSent": false,
-    "addressesArePredictionsNotDeployments": true,
+    "productionTransactionsSent": true,
+    "addressesArePredictionsNotDeployments": false,
     "scriptSha256": "0574dea3ae6f7ce16b8771c94002f245d4b9dd5c228ca6d23fa657954974a86f",
     "transactions": [
       {
@@ -473,5 +478,264 @@
         "inputKeccak256": "0x4d9ad850b9d9f689f5c5796d028dc268d183712f8a7e7c2941e58819e87d048c"
       }
     ]
+  },
+  "deployment": {
+    "chainId": 56,
+    "sourceCommit": "6d3475d14297adb148000e730b08a14c5cef2c48",
+    "verifiedBlockNumber": 131064761,
+    "verifiedBlockHash": "0x444b843e4a653378fecd8d9c13539ad02a2b40aee2e33b49c006b97874bb122a",
+    "verifiedAt": "2026-11-01T22:26:37+08:00",
+    "transactionCount": 8,
+    "transactions": [
+      {
+        "nonce": 0,
+        "action": "BinanceAgentIdentityAdapter",
+        "transactionHash": "0xa9558fb5307c2fbcf7f995735429f3d063e5fefa61e9954acade082da104a9fb",
+        "blockNumber": 131063845,
+        "blockHash": "0xc298fb3f5c408cdac26b413d260339068b9fffbf12e670cbb6de82a5d610b509",
+        "confirmationsAtReview": 915,
+        "gasUsed": "313942",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "15697100000000",
+        "contractAddress": "0xf9c3e5de50da00c9b35670b4418205b1a0527dbf",
+        "inputKeccak256": "0xee8f1b2e83acd1ae4e84499675281239c4f3991106a37457f873b6de81a51cdc"
+      },
+      {
+        "nonce": 1,
+        "action": "GenesisMiner",
+        "transactionHash": "0x58af4d6419c1f5ba97db5d0fcd6dd9cfc0ba5bd8f8502a890f5850764f255563",
+        "blockNumber": 131063849,
+        "blockHash": "0x5e1a6fd07f15984ad2e981bb56895c6c8a56ce421cdcc6ceeb904118247dacdf",
+        "confirmationsAtReview": 911,
+        "gasUsed": "4704850",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "235242500000000",
+        "contractAddress": "0xc6af5ebf9354259c99dfb3601f29ea433c77456e",
+        "inputKeccak256": "0x1a1ad959e7dd520d7853e0432d361d099f2a9d2e7790670ab772c0cb9cea9b20"
+      },
+      {
+        "nonce": 2,
+        "action": "ERC1967Proxy",
+        "transactionHash": "0x145436cfa91dd0636ab806be907baaadbaee05445e0844ce3817c5a589f484fc",
+        "blockNumber": 131063853,
+        "blockHash": "0x3790c78205119602dbc259185e944da8ea3c4f0ffa26f85a3e44a398f2671d59",
+        "confirmationsAtReview": 907,
+        "gasUsed": "447133",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "22356650000000",
+        "contractAddress": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+        "inputKeccak256": "0xf5699377b8e8ffd0eadfca23aa2338cf4c17569e8420e62236bd583540bc9bef"
+      },
+      {
+        "nonce": 3,
+        "action": "FourAgentCoin",
+        "transactionHash": "0x98f591b723029d64068fcbbd185411cbba233662b22908044e617a9599f62ec5",
+        "blockNumber": 131063860,
+        "blockHash": "0x1a15c396ad0bade7b4dff05b7d9c49849fb8e1cece822f77e8aed928bb9ef556",
+        "confirmationsAtReview": 900,
+        "gasUsed": "1072134",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "53606700000000",
+        "contractAddress": "0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4",
+        "inputKeccak256": "0x7fefe7ad226dd06b08064488ef4be167e243f744c7d32346c4d4520fc9254764"
+      },
+      {
+        "nonce": 4,
+        "action": "MiningPool",
+        "transactionHash": "0x6f91bed1d99ddace84962f4b363344fbde317f6e6d00094ed2f9042f7e7c284a",
+        "blockNumber": 131063866,
+        "blockHash": "0x9da05bc956a022f9bb3422cba808cbc7374806e867536dbf0b5480e0cf850303",
+        "confirmationsAtReview": 894,
+        "gasUsed": "1848949",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "92447450000000",
+        "contractAddress": "0x84c4c0293c01c0abeb52992c478ead352fcc67fe",
+        "inputKeccak256": "0x7677674c0bc6047ce75c1475f837e5cfc1dbe8651ce6c6b0d5b6ba4ec54a32fa"
+      },
+      {
+        "nonce": 5,
+        "action": "ERC1967Proxy",
+        "transactionHash": "0x19c357e8029705165b9d044efae1ff6f33abb25629c3867ad6699006c248cf82",
+        "blockNumber": 131063870,
+        "blockHash": "0x0a155a69e52611dc89e9286b08a904f54a56cfe7845ed681a01e141949cd3b12",
+        "confirmationsAtReview": 890,
+        "gasUsed": "265029",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "13251450000000",
+        "contractAddress": "0xa12a9112361bab1411e64891da7481deaf9cff59",
+        "inputKeccak256": "0xb33285bb82c6b4f06b0a984cc3a11e0609351d25fdd1e79b1b54c33941fab185"
+      },
+      {
+        "nonce": 6,
+        "action": "GenesisMiner.setMiningPool",
+        "transactionHash": "0xf2fe8aa78c54970d71f267ebb5b4edb188eb459994a8025e18dbd17fd619fe13",
+        "blockNumber": 131063877,
+        "blockHash": "0xe2361ffc82e7a1ab0aaa50137498a4060e7eec942d78ac68107a8e07dcddd878",
+        "confirmationsAtReview": 883,
+        "gasUsed": "56952",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "2847600000000",
+        "contractAddress": null,
+        "inputKeccak256": "0x4d9ad850b9d9f689f5c5796d028dc268d183712f8a7e7c2941e58819e87d048c"
+      },
+      {
+        "nonce": 7,
+        "action": "FourAgentCoin.setMiningPool",
+        "transactionHash": "0xeef7f3d7c8bab646be4b846800b04134adc0b8f2a2658635a042c7596ace15b7",
+        "blockNumber": 131063883,
+        "blockHash": "0xe558bdbfe8ba5a4397efcde7028d4ffe3bbdddf5a123e09e5a5face1cf26ead0",
+        "confirmationsAtReview": 877,
+        "gasUsed": "52094",
+        "effectiveGasPriceWei": "50000000",
+        "networkFeeWei": "2604700000000",
+        "contractAddress": null,
+        "inputKeccak256": "0x4d9ad850b9d9f689f5c5796d028dc268d183712f8a7e7c2941e58819e87d048c"
+      }
+    ],
+    "totalGasUsed": "8761083",
+    "totalNetworkFeeWei": "438054150000000",
+    "allTransactionValuesWei": "0",
+    "administratorBalanceWeiAtReview": "14551945850000000",
+    "productionTransactionsSent": true,
+    "pairCreated": false,
+    "sourceVerificationStatus": "six_of_six_creation_and_runtime_exact_match",
+    "readonlyVerifierPassed": true,
+    "rpcIndependentReviewPassed": true,
+    "sourceVerification": {
+      "schemaVersion": 1,
+      "chainId": 56,
+      "verifier": "Sourcify",
+      "allEightTransactionsMatchReviewedPlan": true,
+      "sourceCommit": "6d3475d14297adb148000e730b08a14c5cef2c48",
+      "compilerVersion": "0.8.34+commit.80d5c536",
+      "viaIR": true,
+      "optimizerRuns": 200,
+      "evmVersion": "cancun",
+      "runtimeSnapshotBlockNumber": 131065886,
+      "runtimeSnapshotBlockHash": "0xa80f3f60419a8be9cdeca45444d922dbee0fb2fa242e6b19aae2e41bddc57518",
+      "contracts": [
+        {
+          "role": "identityAdapter",
+          "address": "0xf9c3e5de50da00c9b35670b4418205b1a0527dbf",
+          "contract": "src/BinanceAgentIdentityAdapter.sol:BinanceAgentIdentityAdapter",
+          "creationTransactionHash": "0xa9558fb5307c2fbcf7f995735429f3d063e5fefa61e9954acade082da104a9fb",
+          "creationBlockNumber": 131063845,
+          "creationMatch": "exact_match",
+          "runtimeMatch": "exact_match",
+          "runtimeBytes": 1206,
+          "runtimeCodeHash": "0x05c63977d6ec80fed66b3360c0042fb49c488821bd8955cf061453ba62580797",
+          "currentRuntimeMatchesVerifiedBytes": true,
+          "verifiedAt": "2026-11-01T14:25:04Z",
+          "verificationUrl": "https://sourcify.dev/server/v2/contract/56/0xf9c3e5de50da00c9b35670b4418205b1a0527dbf?fields=all"
+        },
+        {
+          "role": "genesisImplementation",
+          "address": "0xc6af5ebf9354259c99dfb3601f29ea433c77456e",
+          "contract": "src/GenesisMiner.sol:GenesisMiner",
+          "creationTransactionHash": "0x58af4d6419c1f5ba97db5d0fcd6dd9cfc0ba5bd8f8502a890f5850764f255563",
+          "creationBlockNumber": 131063849,
+          "creationMatch": "exact_match",
+          "runtimeMatch": "exact_match",
+          "runtimeBytes": 21286,
+          "runtimeCodeHash": "0x779717a7b9983a0cb6af4d848bd8ad096710deba5572018ad7f9f138e3ac445d",
+          "currentRuntimeMatchesVerifiedBytes": true,
+          "verifiedAt": "2026-11-01T14:27:15Z",
+          "verificationUrl": "https://sourcify.dev/server/v2/contract/56/0xc6af5ebf9354259c99dfb3601f29ea433c77456e?fields=all"
+        },
+        {
+          "role": "genesisProxy",
+          "address": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+          "contract": "node_modules/@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy",
+          "creationTransactionHash": "0x145436cfa91dd0636ab806be907baaadbaee05445e0844ce3817c5a589f484fc",
+          "creationBlockNumber": 131063853,
+          "creationMatch": "exact_match",
+          "runtimeMatch": "exact_match",
+          "runtimeBytes": 130,
+          "runtimeCodeHash": "0xde1155bf59f1faeed0b53a904a258ce602d5e2cef4b36526d126c8367f0ead8f",
+          "currentRuntimeMatchesVerifiedBytes": true,
+          "verifiedAt": "2026-11-01T14:28:04Z",
+          "verificationUrl": "https://sourcify.dev/server/v2/contract/56/0xaad237c08b4c44ea8fd4eea02bfc827e94459948?fields=all"
+        },
+        {
+          "role": "token",
+          "address": "0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4",
+          "contract": "src/FourAgentCoin.sol:FourAgentCoin",
+          "creationTransactionHash": "0x98f591b723029d64068fcbbd185411cbba233662b22908044e617a9599f62ec5",
+          "creationBlockNumber": 131063860,
+          "creationMatch": "exact_match",
+          "runtimeMatch": "exact_match",
+          "runtimeBytes": 3859,
+          "runtimeCodeHash": "0xb52da27e13e1eebb95886293d2150ddebfa3b6df76177cdee51a64699a959d8f",
+          "currentRuntimeMatchesVerifiedBytes": true,
+          "verifiedAt": "2026-11-01T14:29:38Z",
+          "verificationUrl": "https://sourcify.dev/server/v2/contract/56/0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4?fields=all"
+        },
+        {
+          "role": "poolImplementation",
+          "address": "0x84c4c0293c01c0abeb52992c478ead352fcc67fe",
+          "contract": "src/MiningPool.sol:MiningPool",
+          "creationTransactionHash": "0x6f91bed1d99ddace84962f4b363344fbde317f6e6d00094ed2f9042f7e7c284a",
+          "creationBlockNumber": 131063866,
+          "creationMatch": "exact_match",
+          "runtimeMatch": "exact_match",
+          "runtimeBytes": 8080,
+          "runtimeCodeHash": "0xd53cd0bceeff14aa9ace9f6d9ecd8d475d51c3a57da994d4baba79e1acdbe106",
+          "currentRuntimeMatchesVerifiedBytes": true,
+          "verifiedAt": "2026-11-01T14:31:06Z",
+          "verificationUrl": "https://sourcify.dev/server/v2/contract/56/0x84c4c0293c01c0abeb52992c478ead352fcc67fe?fields=all"
+        },
+        {
+          "role": "poolProxy",
+          "address": "0xa12a9112361bab1411e64891da7481deaf9cff59",
+          "contract": "node_modules/@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy",
+          "creationTransactionHash": "0x19c357e8029705165b9d044efae1ff6f33abb25629c3867ad6699006c248cf82",
+          "creationBlockNumber": 131063870,
+          "creationMatch": "exact_match",
+          "runtimeMatch": "exact_match",
+          "runtimeBytes": 130,
+          "runtimeCodeHash": "0xde1155bf59f1faeed0b53a904a258ce602d5e2cef4b36526d126c8367f0ead8f",
+          "currentRuntimeMatchesVerifiedBytes": true,
+          "verifiedAt": "2026-11-01T14:33:37Z",
+          "verificationUrl": "https://sourcify.dev/server/v2/contract/56/0xa12a9112361bab1411e64891da7481deaf9cff59?fields=all"
+        }
+      ],
+      "chainTransactionsSentByVerification": 0
+    },
+    "publicSourceCommit": "032f34802f098a2c1c1013f7e522b02937bbf116"
+  },
+  "frontend": {
+    "rpcUrl": "https://bsc-rpc.publicnode.com",
+    "rpcSourceUrl": "https://bsc.publicnode.com/",
+    "rpcChainIdVerified": 56,
+    "rpcEventQuerySupported": true,
+    "browserCorsVerified": true,
+    "browserInjectedWalletsEnabled": true,
+    "walletConnectProjectIdConfigured": false,
+    "walletConnectStatus": "awaiting_public_reown_project_id; user_selected_browser_wallets_first",
+    "swapEnabled": false,
+    "ownedPortfolioValidationStatus": "passed_production_client_read_only",
+    "readMulticall": {
+      "address": "0xca11bde05977b3631167028862be2a173976ca11",
+      "codeHash": "0xd5c15df687b16f2ff992fc8d767b4216323184a2bbc6ee2f9c398c318e770891",
+      "runtimeBytes": 3808,
+      "sourceVerificationUrl": "https://sourcify.dev/server/v2/contract/56/0xca11bde05977b3631167028862be2a173976ca11?fields=all",
+      "creationMatch": "exact_match",
+      "runtimeMatch": "exact_match",
+      "readOnlyEthCall": true,
+      "subcallFailureMustReject": true,
+      "prototypeBlockNumber": 131068168,
+      "prototypeBlockHash": "0xaad87d70f68b26e3cc4df60a44b2ec4a802a11142151d47df949db583e5c0e24",
+      "prototypeReadCount": 200,
+      "prototypePassed": true
+    },
+    "ownedPortfolioValidation": {
+      "blockNumber": 131069926,
+      "ownedMinerCount": 2100,
+      "aggregateEthCalls": 42,
+      "totalRpcRequests": 59,
+      "sameBlockWithinPortfolio": true,
+      "allReservedPowerMicroHP": 150000000,
+      "chainTransactionsSent": 0
+    }
   }
 }

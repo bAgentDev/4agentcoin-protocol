@@ -4,10 +4,10 @@ This public repository contains the 4AgentCoin smart contracts and Agent Skill. 
 
 ## Current status
 
-- The official Agent ID Registry's provenance, deployed code and identity rules have been verified. The project adapter and core contracts still require mainnet deployment and binding checks; verified identity-source evidence is not a completed project deployment.
+- The project adapter and core contracts are deployed on BSC mainnet (chain 56). The eight deployment/binding receipts, runtime code, owners, proxy implementations and protocol bindings have been checked against the chain. Minting, staking and mining remain closed, and the BNB/4AGC liquidity pair has not been created.
 - GenesisMiner and MiningPool use UUPS implementations behind ERC1967 proxies. FourAgentCoin remains a fixed contract. The local identity mock is for tests and explicitly local demonstrations only.
 - Local build and regression tests are available, with separate opt-in fork checks against the actual BSC Registry and PancakeSwap V2. These checks are not a security audit or proof that every operation has been validated with a live wallet, paid model or funded production pool.
-- Installation does not connect a wallet, grant spending authority, configure a production deployment or open protocol functions.
+- Installation does not connect a wallet, grant spending authority or open protocol functions. The user still configures their own wallet, miner and explicit work consent.
 
 ## Protocol
 
@@ -39,6 +39,8 @@ The [Binance FAQ](https://web3.binance.com/en/dev-docs/products/agentic-wallet/a
 
 The verified Registry permits one handle per address. Existing identities cannot be transferred, burned, renamed, rebound or revoked. Official administrators can change bounds for new names, so the adapter does not revalidate existing IDs against the FAQ's name-length range or current registration bounds. An address hash, user-supplied name, local mock or handle with an added `.ai` suffix is not the official tokenId. Identity-source verification does not authorize a wallet session or prove use of an LLM.
 
+All six deployed instances have matching creation and runtime code on Sourcify (`exact_match`), including both initialized proxies. The manifest records the verification URLs and block hashes. This is source matching, not a security audit.
+
 ## Install the Skill
 
 Install Node.js 22.20 or later, npm and Git, then run:
@@ -51,7 +53,7 @@ Follow the prompts to select your Agent. This installs the same Skill for all su
 
 Read [the Skill](skills/4agentcoin/SKILL.md) and its [operation reference](skills/4agentcoin/references/operations.md). Before first using the included runner, enter the installed `4agentcoin` Skill directory and install its locked runtime dependency with `npm ci --ignore-scripts`, as described there. Dependency installation does not call a wallet or broadcast a transaction.
 
-The runner supports `status`, `dry-run` and `run` for one already-staked NFT, using an explicitly authorized Codex CLI model setup. Other wallet operations follow the Skill instructions and the official Binance Agentic Wallet. A verified project deployment, identity evidence where required, configuration and user authorization are still necessary. Public deployment parameters do not authorize spending: the example leaves the user's wallet, NFT and work consent to be configured and keeps the gas budget at zero.
+The runner supports `status`, `dry-run` and `run` for one already-staked NFT, using an explicitly authorized Codex CLI model setup. Other wallet operations follow the Skill instructions and the official Binance Agentic Wallet. The packaged example includes reviewed mainnet deployment and identity parameters. The user must still configure their own wallet, actual staked miner and explicit work consent; model automation remains unauthorized and the gas budget is zero until that consent is supplied. The example miner ID is a placeholder, not an asset assigned to the installer.
 
 ## Build and test contracts
 
@@ -68,13 +70,26 @@ The default contract regression suite includes proxy initialization, upgrade per
 
 Deployment and local demonstration scripts are included under `contracts/script/`. Building a script does not execute or broadcast it. Production scripts keep protocol gates closed and require independently verified identity and metadata inputs; their presence does not mean production prerequisites are complete.
 
-## BSC deployment preparation
+## BSC deployment
 
 An ordinary EOA can deploy and administer the contracts. The deployer, revenue recipient and LP treasury do not need an Agent ID. Agent identity is required only for public minting, new staking and work submissions. Keep signing keys and passwords in a user-controlled local signer; these scripts never read them.
 
-The public [BSC manifest](config/deployments.bsc.json) remains disabled until the project deployment is completed and verified. Official Registry source evidence is recorded separately from the adapter/core addresses and their actual deployment receipts. Reviewed identity-source and PancakeSwap addresses do not establish a deployed project or funded liquidity. Transaction amounts and deadlines require explicit review before use.
+The public [BSC manifest](config/deployments.bsc.json) records this deployment and enables read-only checking. Actual creation receipts, runtime hashes, proxy implementations, binding checks and per-contract source-verification results are recorded there. Source matching is not a security audit. The administrator, reserve recipient, fee recipient and initial LP treasury are `0x4a395c91484544cec82424cc23af20239feea2d4`.
 
-The complete production path has eight transactions: deploy the real `BinanceAgentIdentityAdapter`, then the seven core steps consisting of two implementations, two atomically initialized proxies, one fixed Token and two Pool bindings. The deployment script verifies the official Registry runtime and the official identity configuration pointer before creating the adapter. Minting, staking and mining remain closed; LP activation is a later manual operation. The seven core steps previously used 8,447,057 gas in a local Anvil run with a test identity mock. That measurement excludes the new adapter and is not a complete production budget. The final script passed a complete BSC read-only simulation with the reviewed role addresses and metadata: eight zero-value transactions, a 150% gas estimate multiplier, 13,151,843 total gas limits and an estimated maximum 0.00065759215 BNB network fee at 0.05 gwei. These addresses are predictions until real receipts exist; recheck the nonce, bytecode and gas quote before signing. The deployment-cost target remains below 0.1 BNB with LP principal excluded, not a verified quote or guarantee.
+| Contract | BSC address |
+|---|---|
+| Genesis NFT proxy | [0xaad237c08b4c44ea8fd4eea02bfc827e94459948](https://bscscan.com/address/0xaad237c08b4c44ea8fd4eea02bfc827e94459948) |
+| Genesis implementation | [0xc6af5ebf9354259c99dfb3601f29ea433c77456e](https://bscscan.com/address/0xc6af5ebf9354259c99dfb3601f29ea433c77456e) |
+| Fixed 4AGC Token | [0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4](https://bscscan.com/address/0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4) |
+| MiningPool proxy | [0xa12a9112361bab1411e64891da7481deaf9cff59](https://bscscan.com/address/0xa12a9112361bab1411e64891da7481deaf9cff59) |
+| MiningPool implementation | [0x84c4c0293c01c0abeb52992c478ead352fcc67fe](https://bscscan.com/address/0x84c4c0293c01c0abeb52992c478ead352fcc67fe) |
+| Fixed Agent ID adapter | [0xf9c3e5de50da00c9b35670b4418205b1a0527dbf](https://bscscan.com/address/0xf9c3e5de50da00c9b35670b4418205b1a0527dbf) |
+
+Use the NFT and Pool proxy addresses for business operations. Deployment created 2,100 reserved miners at 150 HP and the 1,050,000-token initial LP allocation; public minting and mining issuance were both zero at the deployment check. LP creation, funding and transaction deadlines require separate review.
+
+The eight mainnet transactions completed in BSC blocks 131063845–131063883: the real `BinanceAgentIdentityAdapter`, two implementations, two atomically initialized proxies, the fixed Token and two Pool bindings. They used 8,761,083 gas at 0.05 gwei, for an actual total network fee of **0.00043805415 BNB**; every transaction's value was zero. LP principal, LP initialization and later manual operations are outside this cost. The recorded 0.00065759215 BNB preflight was a simulation with a 150% gas estimate multiplier, not the actual charge.
+
+The deployment script verifies the official Registry runtime and identity configuration pointer before creating the adapter. Minting, staking and mining remain closed; LP activation is a later manual operation. These eight transactions are already deployed: do not rerun the creation script to manage them. Use the reviewed addresses and the appropriate operation script.
 
 From `contracts/`, after independently verifying the actual deployment and reviewing the manifest, the read-only check is:
 
@@ -82,7 +97,7 @@ From `contracts/`, after independently verifying the actual deployment and revie
 forge script script/VerifyDeployment.s.sol:VerifyDeployment --rpc-url "$BSC_RPC_URL"
 ```
 
-The default manifest must stop with `BLOCKED: deployment manifest is disabled`. The checker never broadcasts. It checks proxy code, the ERC1967 implementation slot, reviewed implementation code hashes and business bindings; unchanged proxy code alone is insufficient. `expected.requirePair=false` explicitly leaves LP acceptance incomplete; after funding, record the real Pair address/hash and a positive reviewed LP minimum before requiring Pair verification. Update the expected treasury exemption if it is removed.
+The committed mainnet manifest enables deployment verification; this setting does not open the protocol gates. The checker never broadcasts. It checks proxy code, the ERC1967 implementation slot, reviewed implementation code hashes and business bindings; unchanged proxy code alone is insufficient. `expected.requirePair=false` explicitly leaves LP acceptance incomplete; after funding, record the real Pair address/hash and a positive reviewed LP minimum before requiring Pair verification. Update the expected treasury exemption if it is removed.
 
 `BootstrapLiquidity.s.sol` supports one manually selected action per invocation: `withdrawLP`, `withdrawOperations`, `createPair`, `registerPair`, `approve`, `addLiquidity`, `revokeApproval`, or `removeTreasuryExemption`. For example, the following is a simulation only:
 
@@ -105,7 +120,7 @@ BSC_RPC_URL="https://your-reviewed-bsc-rpc" BSC_FORK_BLOCK_NUMBER="your-reviewed
 
 Set a reachable BSC mainnet RPC and an explicit block with available historical state. The tests check source chain 56, record the source block/hash, and perform transactions only inside the local EVM on chain 31337 with synthetic balances. The identity fork checks real Registry reads and adapter integration; its locally simulated minting and work do not create production assets. Missing RPC/block or unavailable state is an uncompleted fork check, not a pass. Fork success does not establish actual project deployment or authorize production transactions. No paid service is required by these files.
 
-The current local fork passed 7 real-Registry integration tests and 8 V2 tests at BSC source block `131061945` (`0xce92d1b6f39d0857c55699e11e3f69508abd02c359090fdaa558761eabfd6807`), with all protocol mutations kept in the local EVM. A separate local Anvil run at source block `131037002` measured Token deployment, Pair creation, registration, exact approval and LP funding: 4,671,386 gas used across five local transactions, of which 3,599,276 is the four AMM steps excluding the duplicate Token deployment. The manifest keeps the per-transaction estimates and receipts as local references. No production BNB was spent. The old V2 measurement remains separate from the new eight-transaction deployment simulation. `budget.estimateVerified=true` records that deployment simulation, not completed mainnet deployment or final LP initialization; actual addresses and adapter binding remain unset pending real receipts.
+The current local fork passed 7 real-Registry integration tests and 8 V2 tests at BSC source block `131061945` (`0xce92d1b6f39d0857c55699e11e3f69508abd02c359090fdaa558761eabfd6807`), with all protocol mutations kept in the local EVM. A separate local Anvil run at source block `131037002` measured Token deployment, Pair creation, registration, exact approval and LP funding: 4,671,386 gas used across five local transactions, of which 3,599,276 is the four AMM steps excluding the duplicate Token deployment. The manifest keeps the per-transaction estimates and receipts as local references. No production BNB was spent by those local fork runs. Their V2 measurements remain separate from the actual eight-transaction mainnet deployment recorded above. `budget.estimateVerified` refers to the preflight estimate; actual receipts and fees are in the manifest's `deployment` record. Neither the fork runs nor the deployment established or funded an LP.
 
 ## Review and simulate an upgrade
 
@@ -126,7 +141,7 @@ For a reference in another build-info directory, prefix its contract name with t
 
 `UpgradeProtocol.s.sol` consumes an operator-reviewed attestation; it does not run that CLI or generate independent compatibility proof. After independently validating and reviewing the exact sources and deployed implementation hashes, record the attestation under the existing `contracts/broadcast/` path, using the manifest's `upgrade.storageValidationReportPath` (default `./broadcast/upgrade-storage-validation.json` from `contracts/`). Required report fields include `tool=openzeppelin-upgrades-core`, `toolVersion=1.46.0`, `referenceContract`, `targetContract`, `referenceImplementationCodeHash`, `newImplementationCodeHash`, `storageCompatible`, and `unsafeSkipStorageCheck=false`. Retain the command, output and review record with it. Set `upgrade.storageValidationReportHash` to the keccak256 of the report's exact bytes only after review. A matching report hash locks those inputs; it cannot prove that the operator executed the tool or that every business state is compatible.
 
-The reviewed manifest selects exactly `upgrade.target=genesis` or `pool`, the new implementation address/hash and any reviewed migration calldata. Token is not an upgrade target. Both deployment and upgrade remain disabled by default. Once all prerequisites are independently verified, this command simulates one selected proxy upgrade without broadcasting:
+The reviewed manifest selects exactly `upgrade.target=genesis` or `pool`, the new implementation address/hash and any reviewed migration calldata. Token is not an upgrade target. The mainnet deployment record is enabled for reading; `upgrade.enabled` remains false by default. Once all prerequisites are independently verified, this command simulates one selected proxy upgrade without broadcasting:
 
 ```sh
 SIGNER_ADDRESS="$ADMIN_ADDRESS" \

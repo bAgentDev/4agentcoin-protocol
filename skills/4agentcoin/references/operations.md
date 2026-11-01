@@ -1,10 +1,10 @@
 # 4AgentCoin Agent 工作量证明操作参考
 
-产品定位为 Agent 工作量证明（Agent Proof of Work）：Agent 完成工作任务、提交工作证明，合约验证工作结果并发放有效工作奖励。V1业务合约为GenesisMiner、MiningPool、FourAgentCoin，`BinanceAgentIdentityAdapter` 连接已核实的官方身份 Registry。下述ABI名称对应源码，生产使用前必须匹配实际编译产物、代码和绑定。身份源已经核实，项目适配器及核心合约的主网部署与绑定尚待完成；缺必要配置就报告未开放，不编造交易。
+产品定位为 Agent 工作量证明（Agent Proof of Work）：Agent 完成工作任务、提交工作证明，合约验证工作结果并发放有效工作奖励。V1业务合约为GenesisMiner、MiningPool、FourAgentCoin，`BinanceAgentIdentityAdapter` 连接已核实的官方身份 Registry。下述ABI名称对应源码，生产使用前必须匹配实际编译产物、代码和绑定。身份源、主网部署回执及适配器/核心绑定已经核实，实际参数见[公开 BSC 部署清单](https://github.com/bAgentDev/4agentcoin-protocol/blob/main/config/deployments.bsc.json)。部署核验时铸造、质押和挖矿关闭，LP 尚未建立；每次操作以当时链上状态为准，缺必要配置或未开放时报告状态，不编造交易。
 
 ## 操作入口与支持边界
 
-同一份 Skill 覆盖资产和矿机查询、铸造、批量质押/解押、工作任务、NFT 转移和市场、4AGC 转账与买卖。用户用自然语言提出请求，Agent 按本参考选择真实合约调用及官方 BAW 能力；无需为每项业务另装一份 Skill。这不等于包内每项业务都有命令行实现，也不代表安装完成后已有生产地址、官方身份适配器、钱包授权或交易流动性。
+同一份 Skill 覆盖资产和矿机查询、铸造、批量质押/解押、工作任务、NFT 转移和市场、4AGC 转账与买卖。用户用自然语言提出请求，Agent 按本参考选择真实合约调用及官方 BAW 能力；无需为每项业务另装一份 Skill。包内命令行能力限于下述运行器；公开的主网地址和适配器参数不授予钱包权限，也不建立交易流动性。
 
 查询资产时，读取官方钱包余额和已核实合约中的矿机所有权、HP、质押及有效订单。按用户请求限定链与钱包，不先索取 Agent ID；不能用本机运行器的 `status` 冒充完整资产查询。网页功能入口和显示开关不会改变合约权限；swap 链接可见也不证明已有可交易的流动性。
 
@@ -29,7 +29,7 @@
 
 Registry的 `handleOf(address)->string` 返回不带 `.ai` 的裸handle，`ownerOfHandle(string)->address` 和 `ownerOf(uint256)->address` 可回读持有人；`balanceOf(address)`反映身份持有。官方tokenId为 `uint256(keccak256(bytes(handle)))`，适配器的 `agentIdOf(address)->bytes32` 使用同一ID，`isEligible(address)`按同一读取结果判断资格。不能hash钱包地址、自填名称或把 `.ai` 后缀加入hash。空handle且确无身份返回无资格；上游查询失败、无代码或持有人/名称不一致报告身份不可用，不能伪装成未注册。
 
-已验证源码每地址只允许注册一次，已有身份不可转移、销毁、改名、换绑或撤销。官方可调整新注册名称的长度上下限，不能用FAQ的3–15字符或当前链上长度限制重新筛选已有ID。该适配全程链上读取，无项目身份服务器；核实Registry不代表项目合约已经部署，也不授予钱包或工作授权。
+已验证源码每地址只允许注册一次，已有身份不可转移、销毁、改名、换绑或撤销。官方可调整新注册名称的长度上下限，不能用FAQ的3–15字符或当前链上长度限制重新筛选已有ID。该适配全程链上读取，无项目身份服务器。项目适配器已在 BSC 主网部署并核对实际绑定；公开地址、身份资料或部署核验不授予钱包及工作授权。
 
 各代理通过 Ownable2Step owner 控制管理与 UUPS 升级，没有独立 ProxyAdmin；部署人、管理员和 LP 资金账户可以是普通 EOA，不因这些角色要求 Agent ID。owner 能改变 NFT/矿池实现，固定 Token cap 不保证矿池排放规则不可变；本次采用的数值与经济规则不变。管理员升级后须重新审阅实现与权限，不能自动把运行配置替换成链上新实现或沿用旧实现的工作授权。提交前复核也不能锁住待确认期间的管理员升级。
 
@@ -50,9 +50,9 @@ Registry的 `handleOf(address)->string` 返回不带 `.ai` 的裸handle，`owner
 | model | 只实现provider=codex；真实binary、automationAuthorized=true、timeoutMs为1000–600000、maxAttempts为1–3 |
 | authorization | 用户明确确认后生成并记录唯一consentId(UUID)、confirmedByUser、single/bounded、poolAddress/chainId/walletAddress/tokenId、maxTasks、maxDurationSeconds、maxGasWei、maxGasPerTaskWei、正数minGrossWei、ISO格式expiresAt；缺项不能run |
 | skipRepeatedConfirmations | 仅用户明确跳过重复确认且授权覆盖此有界循环才设true；不授权其他资金动作 |
-| stateFile | 只记录本机进度和请求hash，不存凭据，默认.miner-state/session.local.json，不打包 |
+| stateFile | 只记录本机进度和请求hash，不存凭据，默认.miner-state/session.bsc.json，不打包 |
 
-缺配置时 status/dry-run 返回 stopped，不猜地址。`run`还核实官方BAW已连接、链受支持和配置钱包为当前钱包。初次运行按官方Skill完成版本/登录preflight。运行配置以包内[配置示例](../assets/miner-config.example.json)为起点，ABI与代码按[公开合约源码](https://github.com/bAgentDev/4agentcoin-protocol/tree/main/contracts/src)的编译产物及真实部署核验；示例不启用执行，不能仅把verified改为true。
+缺配置时 status/dry-run 返回 stopped，不猜地址。`run`还核实官方BAW已连接、链受支持和配置钱包为当前钱包。初次运行按官方Skill完成版本/登录preflight。运行配置以包内[配置示例](../assets/miner-config.example.json)为起点：其中包含本次已核验的主网公开地址、实现和代码 hash；用户须填自己的 walletAddress、实际持有并已质押的 NFT tokenId 和完整会话授权，不能照抄占位 NFT 编号。ABI与当前运行码仍须按[公开合约源码](https://github.com/bAgentDev/4agentcoin-protocol/tree/main/contracts/src)、部署清单及 RPC 核验；deployment.verified 只记录部署核验，不授予执行权限，默认模型自动化未授权、gas预算为零。
 
 单项工作mode=single且maxTasks=1；持续mode=bounded，上限1000项工作和24小时，可给更低限制。必须先有明确模型宿主与预算。授权绑定池、链、钱包、NFT和两份已审阅的实现地址/hash；重启同一consentId保留已耗时和gas，不因JSON键序、备注等无意义变化重置；同consentId修改范围、预算或审核实现会拒绝。旧格式状态没有实现指纹时须保留其预算和待决记录并重新审阅授权，不能清记录绕过。只有用户明确授予新的consentId才开启新预算，不得由Agent自动改ID续费。进程退出不会自动保活。
 
@@ -111,7 +111,7 @@ unstake对原staker开放，即使工作任务暂停或身份失效；没有待�
 4. 官方BAW preview/确认后 `submitTask(tokenId,expectedNonce,packedAnswer,minGrossReward)`。单交易验证工作证明、有效工作净奖励直接发staker、费发feeRecipient、生成下一项工作任务。无服务器、验收签名或后台收据。
 5. 回执成功且匹配池/NFT/staker/原nonce的TaskSolved才算发奖，随后读下一项工作任务。同NFT同区块不能重复提交，等正常回执继续。无21块窗口、无倒计时、无单独claim交易。
 
-4AGC上限21,000,000，初始LP1,050,000，有效工作毛奖励总额度M=19,950,000。第k次减半阈值M−(M>>k)，按提交前累计毛发行量进入阶段，不按天、区块或难度。base=initialBaseReward>>era，gross=min(floor(base×HPmicro/150000000),remaining)。fee=floor(gross×300/10000)，net=gross−fee；3%已在每项有效工作的毛奖励内扣，不再claim。跨阈值的整项工作使用提交前阶段，下一项工作重新读取；零奖励停、可能留尾差。LP和转账不算有效工作奖励发行量。150HP初始每项有效工作2.1仅为可配置本地初值，以真实initialBaseReward/previewReward为准，不代表价格或收益保证。
+4AGC上限21,000,000，初始LP1,050,000，有效工作毛奖励总额度M=19,950,000。第k次减半阈值M−(M>>k)，按提交前累计毛发行量进入阶段，不按天、区块或难度。base=initialBaseReward>>era，gross=min(floor(base×HPmicro/150000000),remaining)。fee=floor(gross×300/10000)，net=gross−fee；3%已在每项有效工作的毛奖励内扣，不再claim。跨阈值的整项工作使用提交前阶段，下一项工作重新读取；零奖励停、可能留尾差。LP和转账不算有效工作奖励发行量。本次主网部署的150HP基准初始每项有效工作奖励为2.1 4AGC；当次奖励以真实initialBaseReward/previewReward为准，不代表价格或收益保证。
 
 ## 创世矿机市场
 
