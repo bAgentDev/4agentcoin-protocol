@@ -1,0 +1,26 @@
+# Local configuration, wallet material and session state.
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+.miner-state/
+
+# Dependencies and generated build, test and broadcast output.
+node_modules/
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Machine and process output.
+.DS_Store
+*.log

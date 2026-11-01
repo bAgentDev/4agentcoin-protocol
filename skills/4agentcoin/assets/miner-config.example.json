@@ -1,0 +1,51 @@
+{
+  "environment": "local",
+  "chainId": 31337,
+  "rpcUrl": "http://127.0.0.1:8545",
+  "walletAddress": null,
+  "poolAddress": null,
+  "genesisAddress": null,
+  "tokenAddress": null,
+  "tokenId": "0",
+  "deployment": {
+    "verified": false,
+    "localMocks": false,
+    "identityVerifier": null,
+    "codeHashes": { "pool": null, "genesis": null, "token": null, "identityVerifier": null },
+    "verifiedIdentitySource": {
+      "verified": false,
+      "chainId": null,
+      "officialUrl": null,
+      "verifiedAt": null,
+      "verificationEvidence": null,
+      "registryAddress": null,
+      "registryCodeHash": null,
+      "adapterRegistryRead": { "abi": [], "functionName": null }
+    }
+  },
+  "model": {
+    "provider": "codex",
+    "binary": "codex",
+    "automationAuthorized": false,
+    "timeoutMs": 120000,
+    "maxAttempts": 1
+  },
+  "authorization": {
+    "consentId": null,
+    "confirmedByUser": false,
+    "mode": "single",
+    "skipRepeatedConfirmations": false,
+    "chainId": 31337,
+    "poolAddress": null,
+    "walletAddress": null,
+    "tokenId": "0",
+    "maxTasks": 1,
+    "maxDurationSeconds": 600,
+    "maxGasWei": "0",
+    "maxGasPerTaskWei": "0",
+    "minGrossWei": "0",
+    "expiresAt": null
+  },
+  "stateFile": ".miner-state/session.local.json",
+  "receiptTimeoutMs": 60000
+}

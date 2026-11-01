@@ -1,0 +1,22 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib", "node_modules"]
+# forge-std v1.12.0: 7117c90c8cf6c68e5acce4f09a6b24715cea4de6 (official foundry-rs repository).
+solc_version = "0.8.34"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+# One boundary test executes all 18,900 distinct public mints in a single test call.
+gas_limit = 10_000_000_000
+remappings = [
+  "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+  "forge-std/=lib/forge-std/src/"
+]
+fs_permissions = [{ access = "read-write", path = "./broadcast" }]
+
+[fuzz]
+runs = 256
