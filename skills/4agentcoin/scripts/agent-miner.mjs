@@ -33,6 +33,7 @@ const ID_ABI = parseAbi([
   'function isEligible(address account) view returns (bool)',
   'function agentIdOf(address account) view returns (bytes32)',
 ]);
+const IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
 const bigint = (x, field) => {
   if (!/^(0|[1-9][0-9]*)$/.test(String(x))) throw new Error(`${field}: expected unsigned decimal integer`);
@@ -67,6 +68,11 @@ export function checkConfig(c) {
   for (const k of ['pool', 'genesis', 'token', 'identityVerifier']) {
     if (!/^0x[0-9a-fA-F]{64}$/.test(c.deployment.codeHashes?.[k] ?? '')) throw new Error(`Missing ${k} runtime code hash`);
   }
+  for (const k of ['genesis', 'pool']) {
+    const proxy = c.deployment.proxies?.[k];
+    if (!isAddress(proxy?.implementationAddress ?? '') || same(proxy.implementationAddress, zeroAddress)) throw new Error(`Missing reviewed ${k} implementation address`);
+    if (!/^0x[0-9a-fA-F]{64}$/.test(proxy.implementationCodeHash ?? '') || /^0x0{64}$/i.test(proxy.implementationCodeHash)) throw new Error(`Missing reviewed ${k} implementation code hash`);
+  }
   return c;
 }
 
@@ -97,6 +103,10 @@ export function authorizationSession(c, saved, now = Date.now()) {
     tokenId: BigInt(a.tokenId).toString(), maxTasks: a.maxTasks, maxDurationSeconds: a.maxDurationSeconds,
     maxGasWei: BigInt(a.maxGasWei).toString(), maxGasPerTaskWei: BigInt(a.maxGasPerTaskWei).toString(),
     minGrossWei: BigInt(a.minGrossWei).toString(), expiresAt: Date.parse(a.expiresAt),
+    implementations: Object.fromEntries(['genesis', 'pool'].map(name => [name, {
+      address: c.deployment.proxies[name].implementationAddress.toLowerCase(),
+      codeHash: c.deployment.proxies[name].implementationCodeHash.toLowerCase(),
+    }])),
   })));
   if (saved?.authorizationId === authorizationId && saved.authorizationFingerprint !== authorizationFingerprint) throw new Error('Authorization scope changed under the same consentId; obtain new explicit user consent');
   const sameConsent = saved?.authorizationId === authorizationId;
@@ -181,20 +191,30 @@ export async function askModel(task, model, processRunner = runProcess) {
   } finally { await rm(workdir, { recursive: true, force: true }); }
 }
 
-export async function verifyDeployment(client, c) {
+export async function verifyDeployment(client, c, blockNumber) {
   checkConfig(c);
   if (await client.getChainId() !== c.chainId) throw new Error('RPC chain mismatch');
+  blockNumber ??= await client.getBlockNumber({ cacheTime: 0 });
   for (const [name, address] of Object.entries({ pool: c.poolAddress, genesis: c.genesisAddress, token: c.tokenAddress, identityVerifier: c.deployment.identityVerifier })) {
-    const code = await client.getCode({ address });
-    if (!code || code === '0x' || keccak256(code) !== c.deployment.codeHashes[name]) throw new Error(`${name}: code hash mismatch or no code`);
+    const code = await client.getCode({ address, blockNumber });
+    if (!code || code === '0x' || !same(keccak256(code), c.deployment.codeHashes[name])) throw new Error(`${name}: code hash mismatch or no code`);
+  }
+  for (const [name, address] of Object.entries({ genesis: c.genesisAddress, pool: c.poolAddress })) {
+    const slot = await client.getStorageAt({ address, slot: IMPLEMENTATION_SLOT, blockNumber });
+    if (!/^0x0{24}[0-9a-f]{40}$/i.test(slot ?? '') || /^0x0{64}$/i.test(slot)) throw new Error(`${name}: invalid or empty ERC1967 implementation slot`);
+    const implementation = `0x${slot.slice(-40)}`;
+    const reviewed = c.deployment.proxies[name];
+    if (!same(implementation, reviewed.implementationAddress)) throw new Error(`${name}: implementation changed or not reviewed; stop and review the upgrade`);
+    const code = await client.getCode({ address: implementation, blockNumber });
+    if (!code || code === '0x' || !same(keccak256(code), reviewed.implementationCodeHash)) throw new Error(`${name}: implementation code hash mismatch or no code`);
   }
   if (!c.deployment.localMocks) {
     const source = c.deployment.verifiedIdentitySource;
-    const registryCode = await client.getCode({ address: source.registryAddress });
-    const registry = await client.readContract({ address: c.deployment.identityVerifier, abi: source.adapterRegistryRead.abi, functionName: source.adapterRegistryRead.functionName });
-    if (!same(registry, source.registryAddress) || !registryCode || keccak256(registryCode) !== source.registryCodeHash) throw new Error('Official registry binding/code mismatch');
+    const registryCode = await client.getCode({ address: source.registryAddress, blockNumber });
+    const registry = await client.readContract({ address: c.deployment.identityVerifier, abi: source.adapterRegistryRead.abi, functionName: source.adapterRegistryRead.functionName, blockNumber });
+    if (!same(registry, source.registryAddress) || !registryCode || !same(keccak256(registryCode), source.registryCodeHash)) throw new Error('Official registry binding/code mismatch');
   }
-  const read = (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args });
+  const read = (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args, blockNumber });
   const results = await Promise.all([
     read(c.poolAddress, POOL_ABI, 'genesis'), read(c.poolAddress, POOL_ABI, 'token'),
     read(c.genesisAddress, GENESIS_ABI, 'miningPool'), read(c.genesisAddress, GENESIS_ABI, 'identityVerifier'),
@@ -208,6 +228,8 @@ export async function verifyDeployment(client, c) {
 export async function readTask(client, c) {
   // A new receipt must not be followed by viem's default cached pre-submit head.
   const blockNumber = await client.getBlockNumber({ cacheTime: 0 });
+  try { await verifyDeployment(client, c, blockNumber); }
+  catch (error) { throw Object.assign(new Error(error.message, { cause: error }), { code: 'DEPLOYMENT_VERIFICATION_FAILED' }); }
   const read = (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args, blockNumber });
   const id = bigint(c.tokenId, 'tokenId');
   const [task, reward, open, staker, eligible, identity, boundIdentity, currentVerifier] = await Promise.all([
@@ -272,7 +294,6 @@ export async function mineOne(c, deps) {
   if (typeof packed !== 'bigint' || packed < 0n || packed >= 2n ** 32n) throw new Error('Invalid packed model answer');
   const colors = Array.from({ length: 16 }, (_, i) => Number((packed >> BigInt(2 * i)) & 3n));
   validateAnswer(colors, before.edges);
-  assertFresh(before, await readTask(client, c), minGross);
   const inputData = encodeFunctionData({ abi: POOL_ABI, functionName: 'submitTask', args: [BigInt(c.tokenId), before.nonce, packed, minGross] });
   const gas = await client.estimateGas({ account: c.walletAddress, to: c.poolAddress, data: inputData, value: 0n, blockTag: 'pending' });
   const gasPrice = await client.getGasPrice();
@@ -282,17 +303,19 @@ export async function mineOne(c, deps) {
   checkAuthorization(c, now());
   const currentSettings = await wallet(['wallet', 'settings', '--json']);
   if (!hasDeveloperMode(currentSettings, now())) throw new Error('Developer Mode expired; paused before preview');
+  assertFresh(before, await readTask(client, c), minGross);
   const preview = validatePreview(await wallet(['contract-call', 'preview', '--binanceChainId', String(c.chainId), '--from', c.walletAddress, '--to', c.poolAddress, '--value', '0', '--inputData', inputData, '--json']), now(), c.poolAddress);
   notify('waitingapproval', { tokenId: c.tokenId, poolAddress: c.poolAddress, tokenAddress: c.tokenAddress, nonce: before.nonce, gross: before.gross, fee: before.fee, net: before.net, minGross, gasReservationWei: reservation, ...preview });
   const auto = c.authorization.skipRepeatedConfirmations === true;
   if (auto && ((preview.risks.riskDetails?.length ?? 0) || (preview.risks.riskBehaviors?.length ?? 0) || Object.values(preview.risks.addresses ?? {}).some(x => x.riskDetails?.length))) throw new Error('Preview reports new risk; explicit review required');
   if (preview.requireConfirmation === true) throw new Error('Binance App confirmation is required; paused before execute');
   const approved = auto || await confirm(preview);
-  assertFresh(before, await readTask(client, c), minGross);
   checkAuthorization(c, now());
   const finalGas = await client.estimateGas({ account: c.walletAddress, to: c.poolAddress, data: inputData, value: 0n, blockTag: 'pending' });
   const finalReservation = finalGas * await client.getGasPrice() * 2n;
   if (finalReservation > BigInt(c.authorization.maxGasPerTaskWei) || finalReservation > remainingGas()) throw new Error('Gas budget exceeded after preview; no execute');
+  assertFresh(before, await readTask(client, c), minGross);
+  checkAuthorization(c, now());
   const result = await executeApproved({ preview, approved, now: now(), execute: requestId => wallet(['contract-call', 'execute', '--requestId', requestId, '--json']) });
   // Persist a pending intent before execute at the outer runner; any ambiguous
   // execute result blocks resubmission until the original request is reconciled.
@@ -373,7 +396,11 @@ export async function readStatus(client, c, saved, mode = 'status', deploymentEr
   const replacementReceipt = tracked?.hash && !same(tracked.hash, originalHash) ? await getReceipt(tracked.hash) : null;
   let task = null, taskError = deploymentError;
   if (!deploymentError) {
-    try { task = await readTask(client, c); } catch (error) { taskError = error.message; }
+    try { task = await readTask(client, c); } catch (error) {
+      if (error.message === 'RPC chain mismatch') throw error;
+      taskError = error.message;
+      if (error.code === 'DEPLOYMENT_VERIFICATION_FAILED') deploymentError = error.message;
+    }
   }
   // History remains inspectable even when the current task is no longer usable.
   return { mode, task, taskError, deploymentError, previousSession: saved ?? null, originalReceipt, replacementReceipt, explanation: 'Read only; no model invocation or transaction' };

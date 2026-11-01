@@ -39,14 +39,14 @@ contract VerifyDeployment is Script {
         require(vm.parseJsonBool(manifest, ".enabled"), "BLOCKED: deployment manifest is disabled");
         require(vm.parseJsonUint(manifest, ".schemaVersion") == 1, "Unsupported deployment manifest schema");
         require(vm.parseJsonUint(manifest, ".chainId") == 56 && block.chainid == 56, "BLOCKED: BSC mainnet chain 56 required");
-        require(_same(vm.parseJsonString(manifest, ".expected.deploymentMode"), "constructor_non_upgradeable"), "Unexpected deployment mode");
+        require(_same(vm.parseJsonString(manifest, ".expected.deploymentMode"), "uups_genesis_pool_fixed_token"), "Unexpected deployment mode");
 
         GenesisMiner genesis = GenesisMiner(_checkedAddress(manifest, ".contracts.genesis.address"));
         FourAgentCoin token = FourAgentCoin(_checkedAddress(manifest, ".contracts.token.address"));
         MiningPool pool = MiningPool(_checkedAddress(manifest, ".contracts.pool.address"));
-        _checkCode(address(genesis), vm.parseJsonBytes32(manifest, ".contracts.genesis.codeHash"));
+        _checkProxy(manifest, ".contracts.genesis", address(genesis));
         _checkCode(address(token), vm.parseJsonBytes32(manifest, ".contracts.token.codeHash"));
-        _checkCode(address(pool), vm.parseJsonBytes32(manifest, ".contracts.pool.codeHash"));
+        _checkProxy(manifest, ".contracts.pool", address(pool));
 
         _checkRoles(manifest, genesis, token, pool);
         _checkCore(manifest, genesis, token, pool);
@@ -103,6 +103,18 @@ contract VerifyDeployment is Script {
         require(genesis.liquidityWithdrawn() <= lpBudget && genesis.operationsWithdrawn() <= operationsBudget, "Mint revenue budget exceeded");
         uint256 outstanding = lpBudget - genesis.liquidityWithdrawn() + operationsBudget - genesis.operationsWithdrawn() + genesis.marketFeeBalance();
         require(address(genesis).balance >= outstanding, "Genesis BNB accounting is underfunded");
+    }
+
+    /// @dev Runtime alone cannot identify an upgrade: pin the ERC1967 implementation too.
+    function _checkProxy(string memory manifest, string memory key, address proxy) private view {
+        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        _checkCode(proxy, vm.parseJsonBytes32(manifest, string.concat(key, ".codeHash")));
+        address expected = _checkedAddress(manifest, string.concat(key, ".implementationAddress"));
+        bytes32 stored = vm.load(proxy, slot);
+        require(uint256(stored) >> 160 == 0 && address(uint160(uint256(stored))) == expected, "Unreviewed proxy implementation");
+        _checkCode(expected, vm.parseJsonBytes32(manifest, string.concat(key, ".implementationCodeHash")));
+        (bool ok, bytes memory result) = expected.staticcall(abi.encodeWithSignature("proxiableUUID()"));
+        require(ok && result.length == 32 && abi.decode(result, (bytes32)) == slot, "Implementation is not ERC1967 UUPS");
     }
 
     function _checkIdentity(string memory manifest, GenesisMiner genesis) private view {

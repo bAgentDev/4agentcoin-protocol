@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {ERC721Consecutive} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Consecutive.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {ERC721ConsecutiveUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721ConsecutiveUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
@@ -17,7 +18,8 @@ import {IAgentIdentityVerifier, IGenesisStakeLock} from "./ProtocolInterfaces.so
 /// @dev Initial IDs 0..2099 are allocated with ERC2309; no 2100-token storage loop.
 /// IdentityVerifier is a project adapter, not an assumed official registry ABI.
 /// HP entropy is predictable and can be influenced by salt selection and block producers.
-contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGenesisStakeLock, IERC4906 {
+/// ReentrancyGuard uses a namespaced slot; a proxy's initial zero status is accepted and normalized on first use.
+contract GenesisMiner is Initializable, ERC721ConsecutiveUpgradeable, Ownable2StepUpgradeable, UUPSUpgradeable, ReentrancyGuard, IGenesisStakeLock, IERC4906 {
     using Strings for uint256;
 
     uint256 public constant SUPPLY_CAP = 21_000;
@@ -89,7 +91,7 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
     event StakeLockChanged(uint256 indexed tokenId, address indexed staker, bool locked);
     event ImageURIChanged(string imageURI);
 
-    address public immutable reserveRecipient;
+    address public reserveRecipient;
     address public identityVerifier;
     bool public mintOpen;
     bool public stakingOpen;
@@ -107,7 +109,7 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
     mapping(uint256 => uint16) public mintBonusBps;
 
     uint256 private _nextId;
-    uint256 private _nextListingId = 1;
+    uint256 private _nextListingId;
     string private _imageURI;
     mapping(uint256 => uint256) private _power;
     mapping(bytes32 => mapping(uint256 => bool)) private _agentPowerUsed;
@@ -115,7 +117,15 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
     uint256[] private _activeListings;
     mapping(uint256 => uint256) private _activeIndex;
 
-    constructor(Config memory c) ERC721("4AgentCoin Genesis Miner", "4AGC-GEN") Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() { _disableInitializers(); }
+
+    /// @dev Must run in the ERC1967Proxy constructor: ERC2309 allocation is construction-only.
+    function initialize(Config memory c, address initialOwner) external initializer {
+        __ERC721_init("4AgentCoin Genesis Miner", "4AGC-GEN");
+        __ERC721Consecutive_init();
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
         if (c.reserveRecipient == address(0) || c.reserveRecipient == address(this)) revert InvalidAddress();
         if (c.identityVerifier != address(0) && c.identityVerifier.code.length == 0) revert InvalidAddress();
         if (bytes(c.imageURI).length == 0) revert InvalidConfiguration();
@@ -124,7 +134,10 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
         _imageURI = c.imageURI;
         _mintConsecutive(c.reserveRecipient, uint96(RESERVED_ALLOCATION));
         _nextId = RESERVED_ALLOCATION;
+        _nextListingId = 1;
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function totalAllocated() public view returns (uint256) { return _nextId; }
     function totalSupply() external view returns (uint256) { return _nextId; }
@@ -365,7 +378,7 @@ contract GenesisMiner is ERC721Consecutive, Ownable2Step, ReentrancyGuard, IGene
         emit BatchMetadataUpdate(0, _nextId - 1);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721Upgradeable, IERC165) returns (bool) {
         return interfaceId == bytes4(0x49064906) || super.supportsInterface(interfaceId);
     }
 

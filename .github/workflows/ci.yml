@@ -34,10 +34,85 @@ jobs:
         with:
           version: v1.5.1
           cache: false
-      - name: Install the pinned forge-std revision
+      - name: Install the forge-std revision recorded in foundry.toml
         run: forge install --root "$GITHUB_WORKSPACE/contracts" foundry-rs/forge-std@rev=7117c90c8cf6c68e5acce4f09a6b24715cea4de6 --no-git
-      - run: forge build --root "$GITHUB_WORKSPACE/contracts"
-      - run: forge test --root "$GITHUB_WORKSPACE/contracts"
+      - run: forge build --root .
+      - run: forge test --root .
+      - name: Constrain the reviewed OpenZeppelin constructor exception
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json, pathlib
+          vendor = "node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol"
+          expected = "94e409e8f6e3184236651a6cc2b1a6a3ea0f0a25eb85b71e524ad5791bb2fbc8"
+          assert hashlib.sha256(pathlib.Path(vendor).read_bytes()).hexdigest() == expected
+          targets = {
+              ("src/GenesisMiner.sol", "GenesisMiner"),
+              ("src/MiningPool.sol", "MiningPool"),
+              ("test/Upgradeability.t.sol", "GenesisMinerV2"),
+              ("test/Upgradeability.t.sol", "MiningPoolV2"),
+          }
+          found = set()
+          def walk(value, path, ids):
+              if isinstance(value, dict):
+                  if "id" in value and "nodeType" in value:
+                      ids[value["id"]] = (path, value)
+                  for child in value.values(): walk(child, path, ids)
+              elif isinstance(value, list):
+                  for child in value: walk(child, path, ids)
+          for file in pathlib.Path("out/build-info").glob("*.json"):
+              info = json.loads(file.read_text())
+              sources = info["output"]["sources"]
+              candidates = [(path, node) for path, source in sources.items()
+                  for node in source["ast"]["nodes"]
+                  if node.get("nodeType") == "ContractDefinition" and (path, node["name"]) in targets]
+              if not candidates: continue
+              content = info["input"]["sources"][vendor]["content"].encode()
+              assert hashlib.sha256(content).hexdigest() == expected, "Compiler input differs from reviewed guard"
+              ids = {}
+              for path, source in sources.items(): walk(source["ast"], path, ids)
+              for path, contract in candidates:
+                  found.add((path, contract["name"]))
+                  constructors = set()
+                  for base_id in contract["linearizedBaseContracts"]:
+                      base_path, base = ids[base_id]
+                      for fn in base.get("nodes", []):
+                          if fn.get("nodeType") != "FunctionDefinition" or fn.get("kind") != "constructor": continue
+                          constructors.add((base_path, base["name"]))
+                          if (base_path, base["name"]) == (vendor, "ReentrancyGuard"): continue
+                          assert (base_path, base["name"]) in targets and base_path.startswith("src/"), "Unreviewed constructor"
+                          assert not fn["parameters"]["parameters"] and not fn["modifiers"]
+                          statements = fn["body"]["statements"]
+                          assert len(statements) == 1 and statements[0]["nodeType"] == "ExpressionStatement"
+                          call = statements[0]["expression"]
+                          assert call["nodeType"] == "FunctionCall" and not call["arguments"]
+                          identifier = call["expression"]
+                          assert identifier["nodeType"] == "Identifier" and identifier["name"] == "_disableInitializers"
+                          definition_path, definition = ids[identifier["referencedDeclaration"]]
+                          assert definition_path == "node_modules/@openzeppelin/contracts/proxy/utils/Initializable.sol"
+                          assert definition["nodeType"] == "FunctionDefinition" and definition["name"] == "_disableInitializers"
+                  base_name = "GenesisMiner" if "Genesis" in contract["name"] else "MiningPool"
+                  assert constructors == {(vendor, "ReentrancyGuard"), ("src/" + base_name + ".sol", base_name)}
+          assert found == targets, "Missing upgrade validation targets"
+          print("Only the pinned stateless guard and initializer-lock constructors are allowed")
+          PYTHON
+      - name: Validate implementations and storage compatibility
+        run: |
+          set -o pipefail
+          mkdir -p out/upgrade-validation
+          printf '%s\n' "$GITHUB_SHA" > out/upgrade-validation/source-commit.txt
+          ./node_modules/.bin/openzeppelin-upgrades-core validate out/build-info --contract src/GenesisMiner.sol:GenesisMiner --unsafeAllow constructor 2>&1 | tee out/upgrade-validation/genesis.txt
+          ./node_modules/.bin/openzeppelin-upgrades-core validate out/build-info --contract src/MiningPool.sol:MiningPool --unsafeAllow constructor 2>&1 | tee out/upgrade-validation/pool.txt
+          ./node_modules/.bin/openzeppelin-upgrades-core validate out/build-info --contract test/Upgradeability.t.sol:GenesisMinerV2 --reference src/GenesisMiner.sol:GenesisMiner --requireReference --unsafeAllow constructor 2>&1 | tee out/upgrade-validation/genesis-v2.txt
+          ./node_modules/.bin/openzeppelin-upgrades-core validate out/build-info --contract test/Upgradeability.t.sol:MiningPoolV2 --reference src/MiningPool.sol:MiningPool --requireReference --unsafeAllow constructor 2>&1 | tee out/upgrade-validation/pool-v2.txt
+      - name: Preserve reviewed storage layouts and validation logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: upgrade-layouts-${{ github.sha }}
+          path: |
+            contracts/out/build-info/
+            contracts/out/upgrade-validation/
+          retention-days: 90
+          if-no-files-found: error
 
   skill:
     runs-on: ubuntu-24.04

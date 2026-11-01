@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {GenesisMiner} from "../src/GenesisMiner.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /// @notice Build/simulate with real verified configuration. Broadcasting requires an external signer.
 /// This script never reads a private key. Pass --sender and a user-controlled external signing method.
@@ -22,10 +23,12 @@ contract DeployGenesis is Script {
         require(c.identityVerifier.code.length > 0, "Missing verified project identity adapter");
         require(_prefix(bytes(c.imageURI), bytes("ipfs://")) || _prefix(bytes(c.imageURI), bytes("https://")), "Image must use ipfs or https");
         vm.startBroadcast(signer);
-        miner = new GenesisMiner(c);
+        GenesisMiner implementation = new GenesisMiner();
+        miner = GenesisMiner(address(new ERC1967Proxy(address(implementation), abi.encodeCall(GenesisMiner.initialize, (c, signer)))));
         vm.stopBroadcast();
         require(miner.owner() == signer, "Owner must be external signer");
         console2.log("GenesisMiner", address(miner));
+        console2.log("GenesisMinerImplementation", address(implementation));
         console2.log("Admin", signer);
         console2.log("ChainId", block.chainid);
         console2.log("MintOpen", miner.mintOpen());

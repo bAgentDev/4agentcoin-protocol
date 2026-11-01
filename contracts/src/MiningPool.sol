@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {GenesisMiner} from "./GenesisMiner.sol";
@@ -12,14 +13,15 @@ import {AgentTaskVerifier} from "./AgentTaskVerifier.sol";
 
 /// @notice Non-custodial Genesis locks and a single atomic task/reward transaction.
 /// @dev Task validity is fully on-chain; this does not attest use of an LLM.
-contract MiningPool is Ownable2Step, ReentrancyGuard {
+/// ReentrancyGuard uses a namespaced slot; a proxy's initial zero status is accepted and normalized on first use.
+contract MiningPool is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ReentrancyGuard {
     uint256 public constant NODE_COUNT = 16;
     uint256 public constant SLOT_COUNT = 4;
     uint256 public constant feeBps = 300;
     uint256 public constant REFERENCE_POWER = 150_000_000;
-    GenesisMiner public immutable genesis;
-    FourAgentCoin public immutable token;
-    uint256 public immutable initialBaseReward;
+    GenesisMiner public genesis;
+    FourAgentCoin public token;
+    uint256 public initialBaseReward;
     address public feeRecipient;
     bool public miningOpen;
     uint256 public totalGrossMined;
@@ -52,7 +54,12 @@ contract MiningPool is Ownable2Step, ReentrancyGuard {
     event MiningOpenChanged(bool open);
     event FeeRecipientChanged(address indexed recipient);
 
-    constructor(address genesis_, address token_, address feeRecipient_, uint256 initialBaseReward_) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() { _disableInitializers(); }
+
+    function initialize(address genesis_, address token_, address feeRecipient_, uint256 initialBaseReward_, address initialOwner) external initializer {
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
         if (genesis_.code.length == 0 || token_.code.length == 0 || feeRecipient_ == address(0) || initialBaseReward_ == 0) revert InvalidConfiguration();
         if (initialBaseReward_ > FourAgentCoin(token_).MINING_ALLOCATION()) revert InvalidConfiguration();
         genesis = GenesisMiner(genesis_);
@@ -60,6 +67,8 @@ contract MiningPool is Ownable2Step, ReentrancyGuard {
         feeRecipient = feeRecipient_;
         initialBaseReward = initialBaseReward_;
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function setMiningOpen(bool open) external onlyOwner {
         if (open && (genesis.miningPool() != address(this) || token.miningPool() != address(this))) revert InvalidConfiguration();

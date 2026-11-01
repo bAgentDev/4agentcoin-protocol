@@ -101,10 +101,10 @@ contract BootstrapLiquidity is Script {
     }
 
     function _verify(string memory m, Context memory c) private view {
-        _code(m, ".contracts.genesis.codeHash", address(c.genesis));
+        _proxy(m, ".contracts.genesis", address(c.genesis));
         _code(m, ".contracts.token.codeHash", address(c.token));
-        _code(m, ".contracts.pool.codeHash", address(c.pool));
-        require(keccak256(bytes(vm.parseJsonString(m, ".expected.deploymentMode"))) == keccak256("constructor_non_upgradeable"), "Unexpected deployment mode");
+        _proxy(m, ".contracts.pool", address(c.pool));
+        require(keccak256(bytes(vm.parseJsonString(m, ".expected.deploymentMode"))) == keccak256("uups_genesis_pool_fixed_token"), "Unexpected deployment mode");
         require(c.genesis.owner() == c.admin && c.token.owner() == c.admin && c.pool.owner() == c.admin, "Admin binding mismatch");
         require(c.genesis.miningPool() == address(c.pool) && c.token.miningPool() == address(c.pool) && address(c.pool.genesis()) == address(c.genesis) && address(c.pool.token()) == address(c.token), "Core binding mismatch");
         require(c.genesis.reserveRecipient() == vm.parseJsonAddress(m, ".roles.reserveRecipient") && c.token.lpRecipient() == c.lpTreasury, "Allocation role mismatch");
@@ -280,6 +280,17 @@ contract BootstrapLiquidity is Script {
 
     function _gates(string memory m, Context memory c) private view {
         require(c.genesis.mintOpen() == vm.parseJsonBool(m, ".expected.mintOpen") && c.genesis.stakingOpen() == vm.parseJsonBool(m, ".expected.stakingOpen") && c.pool.miningOpen() == vm.parseJsonBool(m, ".expected.miningOpen"), "Gate state differs from manifest");
+    }
+
+    function _proxy(string memory m, string memory key, address proxy) private view {
+        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        _code(m, string.concat(key, ".codeHash"), proxy);
+        address expected = vm.parseJsonAddress(m, string.concat(key, ".implementationAddress"));
+        bytes32 stored = vm.load(proxy, slot);
+        require(uint256(stored) >> 160 == 0 && address(uint160(uint256(stored))) == expected, "Unreviewed proxy implementation");
+        _code(m, string.concat(key, ".implementationCodeHash"), expected);
+        (bool ok, bytes memory result) = expected.staticcall(abi.encodeWithSignature("proxiableUUID()"));
+        require(ok && result.length == 32 && abi.decode(result, (bytes32)) == slot, "Implementation is not ERC1967 UUPS");
     }
 
     function _code(string memory m, string memory key, address target) private view {

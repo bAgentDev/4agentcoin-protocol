@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Bytes} from "@openzeppelin/contracts/utils/Bytes.sol";
 import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {GenesisMiner} from "../src/GenesisMiner.sol";
 import {MockIdentityVerifier, InspectingMintReceiver, MockMiningPool, RejectingSeller, PayableSeller, RejectingBuyer, ReenteringSeller} from "./Mocks.sol";
 
@@ -18,8 +19,8 @@ contract GenesisMinerTest is Test {
 
     function setUp() public {
         identity = new MockIdentityVerifier();
-        vm.prank(admin);
-        miner = new GenesisMiner(_config(address(identity)));
+        GenesisMiner implementation = new GenesisMiner();
+        miner = GenesisMiner(address(new ERC1967Proxy(address(implementation), abi.encodeCall(GenesisMiner.initialize, (_config(address(identity)), admin)))));
         vm.deal(alice, 100 ether);
         vm.deal(bob, 100 ether);
         vm.deal(address(this), 100 ether);
@@ -169,8 +170,9 @@ contract GenesisMinerTest is Test {
     function testImageURIConfigurationRejectsEmptyAndUnauthorizedChanges() public {
         GenesisMiner.Config memory config = _config(address(identity));
         config.imageURI = "";
+        GenesisMiner implementation = new GenesisMiner();
         vm.expectRevert(GenesisMiner.InvalidConfiguration.selector);
-        new GenesisMiner(config);
+        new ERC1967Proxy(address(implementation), abi.encodeCall(GenesisMiner.initialize, (config, admin)));
         vm.prank(admin);
         vm.expectRevert(GenesisMiner.InvalidConfiguration.selector);
         miner.setImageURI("");

@@ -23,7 +23,9 @@
 
 ### 身份与核验
 
-读取RPC chain ID、完整地址、代码和匹配ABI；代理还须核实实现/管理，不能推定本V1支持升级代理。`GenesisMiner.identityVerifier()`返回项目适配器，其 `isEligible(address)` 与 `agentIdOf(address)->bytes32` 定义项目接口。另核实官方Registry的出处、链、真实ABI、资格和稳定ID语义，以及adapter真实绑定。钱包品牌、CLI声明或普通签名不证明资格。
+读取RPC chain ID、完整地址、代码和匹配ABI。GenesisMiner、MiningPool 使用 UUPS/ERC1967 代理，业务地址始终使用代理地址；同一区块核对代理运行时代码 hash、标准 ERC1967 implementation slot 中的地址及已审阅的 implementation 代码 hash，不能仅凭代理 hash 未变认定逻辑未变。FourAgentCoin 保持固定合约，发奖后的 miningPool 绑定锁仍指向稳定的 Pool 代理。`GenesisMiner.identityVerifier()`返回项目适配器，其 `isEligible(address)` 与 `agentIdOf(address)->bytes32` 定义项目接口。另核实官方Registry的出处、链、真实ABI、资格和稳定ID语义，以及adapter真实绑定。钱包品牌、CLI声明或普通签名不证明资格。
+
+各代理通过 Ownable2Step owner 控制管理与 UUPS 升级，没有独立 ProxyAdmin；部署人、管理员和 LP 资金账户可以是普通 EOA，不因这些角色要求 Agent ID。owner 能改变 NFT/矿池实现，固定 Token cap 不保证矿池排放规则不可变；本次采用的数值与经济规则不变。管理员升级后须重新审阅实现与权限，不能自动把运行配置替换成链上新实现或沿用旧实现的工作授权。提交前复核也不能锁住待确认期间的管理员升级。
 
 官方资格适用于公开mint、新质押、每次提交工作证明。新质押绑定稳定Agent ID，身份撤销或变更阻止新的工作证明/质押，仍可退出、NFT市场、转移、代币操作和查历史。尽量在同一已知区块读取所有权、HP、质押、nonce、奖励和订单，交易前复读；价格变化用minGross/expectedPrice等链上条件保护。
 
@@ -35,7 +37,8 @@
 |---|---|
 | environment/chainId/rpcUrl | 明确环境和真实RPC；RPC URL不能含用户名/密码 |
 | walletAddress/poolAddress/genesisAddress/tokenAddress/tokenId | 完整实际地址，tokenId为NFT uint256，不是bytes32 Agent ID |
-| deployment.verified/identityVerifier/codeHashes | 核验pool/genesis/token/adapter运行时代码keccak256，合约互绑、16/4常量、六位HP、18位4AGC与3%任务费 |
+| deployment.verified/identityVerifier/codeHashes | pool/genesis 为代理运行时代码keccak256，token/identityVerifier 为现有固定Token/adapter代码hash；同时核验合约互绑、16/4常量、六位HP、18位4AGC与3%任务费 |
+| deployment.proxies.genesis / deployment.proxies.pool | 每项均必需 implementationAddress、implementationCodeHash；来自已独立审阅的实际实现，不能为未知升级自动填值。读取标准ERC1967 slot并在同一区块核地址、实现代码与代理代码；空slot、非合约实现、缺值或不匹配均阻断新的工作 |
 | deployment.localMocks | 只可在明确local、31337为true；只用于read/dry-run和注入测试，官方BAW不签本地链 |
 | deployment.verifiedIdentitySource | live必需：verified、chainId、officialUrl、verifiedAt、verificationEvidence、registryAddress、registryCodeHash及adapterRegistryRead的实际abi/functionName。该读取必须来自真实adapter ABI，无参只读返回address；回链核对Registry绑定，不能猜getter |
 | model | 只实现provider=codex；真实binary、automationAuthorized=true、timeoutMs为1000–600000、maxAttempts为1–3 |
@@ -45,7 +48,9 @@
 
 缺配置时 status/dry-run 返回 stopped，不猜地址。`run`还核实官方BAW已连接、链受支持和配置钱包为当前钱包。初次运行按官方Skill完成版本/登录preflight。运行配置以包内[配置示例](../assets/miner-config.example.json)为起点，ABI与代码按[公开合约源码](https://github.com/bAgentDev/4agentcoin-protocol/tree/main/contracts/src)的编译产物及真实部署核验；示例不启用执行，不能仅把verified改为true。
 
-单项工作mode=single且maxTasks=1；持续mode=bounded，上限1000项工作和24小时，可给更低限制。必须先有明确模型宿主与预算。授权绑定池、链、钱包、NFT；重启同一consentId保留已耗时和gas，不因JSON键序、备注等无意义变化重置；同consentId修改范围/预算会拒绝。只有用户明确授予新的consentId才开启新预算，不得由Agent自动改ID续费。进程退出不会自动保活。
+单项工作mode=single且maxTasks=1；持续mode=bounded，上限1000项工作和24小时，可给更低限制。必须先有明确模型宿主与预算。授权绑定池、链、钱包、NFT和两份已审阅的实现地址/hash；重启同一consentId保留已耗时和gas，不因JSON键序、备注等无意义变化重置；同consentId修改范围、预算或审核实现会拒绝。旧格式状态没有实现指纹时须保留其预算和待决记录并重新审阅授权，不能清记录绕过。只有用户明确授予新的consentId才开启新预算，不得由Agent自动改ID续费。进程退出不会自动保活。
+
+每轮模型前、wallet preview前和execute前都重新核验代理实现、业务绑定与当前任务；nonce相同也不豁免实现核验。`status`/`dry-run`发现部署或实现不匹配时返回`deploymentError`，仍在原配置链读取保存的原交易/替换交易回执，不调用模型或钱包，不把历史成功当作当前仍在运行。
 
 gas守卫按RPC estimateGas×gasPrice×2预留，检查每次工作和剩余预算，回执后按真实gas累计。官方contract-call不支持gasPrice/maxFee，这不是网络费绝对硬上限；需要不可超出硬上限时应停止，不能宣称脚本可保证。预算耗尽、权限/任务变化、模型错误、钱包确认、预览错误或超时即停。
 

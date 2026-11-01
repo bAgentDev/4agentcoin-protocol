@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {GenesisMiner} from "../src/GenesisMiner.sol";
 import {FourAgentCoin} from "../src/FourAgentCoin.sol";
 import {MiningPool} from "../src/MiningPool.sol";
@@ -17,9 +18,10 @@ contract MiningPoolTest is Test {
     address lp = makeAddr("lp");
     function setUp() public {
         identity = new MockIdentityVerifier();
-        genesis = new GenesisMiner(GenesisMiner.Config(address(this), address(identity), "ipfs://local"));
+        GenesisMiner implementation = new GenesisMiner();
+        genesis = GenesisMiner(address(new ERC1967Proxy(address(implementation), abi.encodeCall(GenesisMiner.initialize, (GenesisMiner.Config(address(this), address(identity), "ipfs://local"), address(this))))));
         token = new FourAgentCoin(lp, fees);
-        pool = new MiningPool(address(genesis), address(token), fees, 2.1 ether);
+        pool = _deployPool(2.1 ether);
         genesis.setMiningPool(address(pool));
         token.setMiningPool(address(pool));
         genesis.transferFrom(address(this), alice, 0);
@@ -29,6 +31,10 @@ contract MiningPoolTest is Test {
         vm.prank(alice);
         genesis.setApprovalForAll(address(pool), true);
         vm.deal(alice, 100 ether);
+    }
+    function _deployPool(uint256 reward) internal returns (MiningPool) {
+        MiningPool implementation = new MiningPool();
+        return MiningPool(address(new ERC1967Proxy(address(implementation), abi.encodeCall(MiningPool.initialize, (address(genesis), address(token), fees, reward, address(this))))));
     }
     function _ids(uint256 id) internal pure returns (uint256[] memory ids) { ids = new uint256[](1); ids[0] = id; }
     function _open() internal { genesis.setStakingOpen(true); pool.setMiningOpen(true); }
@@ -164,7 +170,7 @@ contract MiningPoolTest is Test {
         assertEq(pool.totalGrossMined(), 2.1 ether + gross);
     }
     function testStageCrossingUsesPreSubmitEraAndNextQuoteHalves() public {
-        MiningPool high = new MiningPool(address(genesis), address(token), fees, token.MINING_ALLOCATION() / 2 + 1);
+        MiningPool high = _deployPool(token.MINING_ALLOCATION() / 2 + 1);
         genesis.setMiningPool(address(high)); token.setMiningPool(address(high));
         genesis.setStakingOpen(true); high.setMiningOpen(true);
         vm.startPrank(alice);
@@ -185,7 +191,7 @@ contract MiningPoolTest is Test {
         while (uint256(keccak256(abi.encode("GENESIS_MINT_POWER_V1", bytes32(saltWord), blockhash(block.number - 1), expectedId, keccak256("alice-agent"), uint256(0), block.chainid, address(genesis)))) % (1e18 + 1) < 8e17) ++saltWord;
         vm.prank(alice); uint256 id = genesis.mint{value: 0.0021 ether}(bytes32(saltWord));
         assertGt(genesis.getToken(id).power, 150_000_000);
-        MiningPool high = new MiningPool(address(genesis), address(token), fees, token.MINING_ALLOCATION());
+        MiningPool high = _deployPool(token.MINING_ALLOCATION());
         genesis.setMiningPool(address(high)); token.setMiningPool(address(high));
         genesis.setStakingOpen(true); high.setMiningOpen(true);
         vm.startPrank(alice);

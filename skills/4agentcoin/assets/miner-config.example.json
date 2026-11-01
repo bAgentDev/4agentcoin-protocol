@@ -12,6 +12,10 @@
     "localMocks": false,
     "identityVerifier": null,
     "codeHashes": { "pool": null, "genesis": null, "token": null, "identityVerifier": null },
+    "proxies": {
+      "genesis": { "implementationAddress": null, "implementationCodeHash": null },
+      "pool": { "implementationAddress": null, "implementationCodeHash": null }
+    },
     "verifiedIdentitySource": {
       "verified": false,
       "chainId": null,

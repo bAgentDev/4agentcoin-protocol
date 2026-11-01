@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Script, console2} from "forge-std/Script.sol";
 import {GenesisMiner} from "../src/GenesisMiner.sol";
 import {MockIdentityVerifier} from "../test/Mocks.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /// @notice Only for an unlocked local Anvil account on chain 31337. Never a production deployment.
 contract LocalGenesis is Script {
@@ -13,10 +14,12 @@ contract LocalGenesis is Script {
         require(admin != address(0), "Set LOCAL_ADMIN to an unlocked local account");
         vm.startBroadcast(admin);
         MockIdentityVerifier verifier = new MockIdentityVerifier();
-        miner = new GenesisMiner(GenesisMiner.Config({
+        GenesisMiner.Config memory c = GenesisMiner.Config({
             reserveRecipient: admin, identityVerifier: address(verifier),
             imageURI: "http://127.0.0.1:5173/nft/genesis-miner.png"
-        }));
+        });
+        GenesisMiner implementation = new GenesisMiner();
+        miner = GenesisMiner(address(new ERC1967Proxy(address(implementation), abi.encodeCall(GenesisMiner.initialize, (c, admin)))));
         verifier.setEligible(admin, true);
         verifier.setAgentId(admin, keccak256("LOCAL_DEMO_AGENT_ID"));
         miner.setMintOpen(true);
@@ -25,6 +28,7 @@ contract LocalGenesis is Script {
         vm.serializeBool(key, "localMocks", true);
         vm.serializeUint(key, "chainId", block.chainid);
         vm.serializeAddress(key, "address", address(miner));
+        vm.serializeAddress(key, "genesisImplementation", address(implementation));
         vm.serializeAddress(key, "admin", admin);
         vm.serializeAddress(key, "identityVerifier", address(verifier));
         // Scan from zero locally so simulated and mined block numbering cannot omit ERC2309.
@@ -33,6 +37,7 @@ contract LocalGenesis is Script {
         vm.createDir("./broadcast/local", true);
         vm.writeJson(json, "./broadcast/local/genesis.json");
         console2.log("GenesisMiner", address(miner));
+        console2.log("GenesisMinerImplementation", address(implementation));
         console2.log("Admin", admin);
         console2.log("IdentityVerifier_LOCAL_MOCK", address(verifier));
         console2.log("ReadyTokenId", uint256(0));

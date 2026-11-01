@@ -10,12 +10,21 @@ import {
 
 const address = n => `0x${String(n).repeat(40)}`;
 const hash = n => `0x${String(n).repeat(64)}`;
+const implementationWord = address => `0x${'0'.repeat(24)}${address.slice(2)}`;
+const runtimeCodeHash = keccak256('0x6000');
 const colors = Array.from({ length: 16 }, (_, i) => i % 4);
 const task = { seed: hash(1), nonce: 7n, power: 150000000n, edges: [1, 258], gross: 2100000000000000000n };
 const now = 1900000000000;
 const config = () => ({
   environment: 'local', chainId: 31337, rpcUrl: 'http://127.0.0.1:8545', walletAddress: address(1), poolAddress: address(2), genesisAddress: address(3), tokenAddress: address(4), tokenId: '0',
-  deployment: { verified: true, localMocks: true, identityVerifier: address(5), codeHashes: { pool: hash(1), genesis: hash(1), token: hash(1), identityVerifier: hash(1) } },
+  deployment: {
+    verified: true, localMocks: true, identityVerifier: address(5),
+    codeHashes: { pool: runtimeCodeHash, genesis: runtimeCodeHash, token: runtimeCodeHash, identityVerifier: runtimeCodeHash },
+    proxies: {
+      genesis: { implementationAddress: address(6), implementationCodeHash: runtimeCodeHash },
+      pool: { implementationAddress: address(7), implementationCodeHash: runtimeCodeHash },
+    },
+  },
   model: { provider: 'codex', automationAuthorized: true, timeoutMs: 1000, maxAttempts: 1 },
   authorization: { consentId: 'ba687e2d-dc62-45e7-ab65-ed41c502e233', confirmedByUser: true, mode: 'single', skipRepeatedConfirmations: false, chainId: 31337, poolAddress: address(2), walletAddress: address(1), tokenId: '0', maxTasks: 1, maxDurationSeconds: 600, maxGasWei: '10000000', maxGasPerTaskWei: '10000000', minGrossWei: '100', expiresAt: new Date(now + 600000).toISOString() },
 });
@@ -31,6 +40,7 @@ function fixture({ stale = false, previewData = preview(), approved = true, rece
   const client = {
     getChainId: async () => 31337,
     getCode: async () => '0x6000',
+    getStorageAt: async ({ address: proxy }) => implementationWord(proxy === address(3) ? address(6) : address(7)),
     getBlockNumber: async () => 10n,
     readContract: async ({ functionName }) => {
       if (functionName === 'getTask') { taskReads++; return [task.seed, stale && taskReads > 1 ? 8n : task.nonce, task.power, task.edges]; }
@@ -381,4 +391,184 @@ test('actual run CLI stays fail-closed on the unconfigured package example', asy
     fileURLToPath(new URL('../scripts/agent-miner.mjs', import.meta.url)), 'run', '--config',
     fileURLToPath(new URL('../assets/miner-config.example.json', import.meta.url)),
   ], { timeoutMs: 5000 }), /Missing verified walletAddress/);
+});
+
+test('missing reviewed proxy configuration stops before model or transaction approval', async () => {
+  for (const name of ['genesis', 'pool']) {
+    for (const change of [null, { implementationAddress: null }, { implementationAddress: address(6), implementationCodeHash: hash(0) }]) {
+      const c = config(); c.deployment.proxies[name] = change;
+      let modelCalls = 0;
+      const f = fixture({ model: async () => { modelCalls++; return validateAnswer(colors, task.edges); } });
+      await assert.rejects(mineOne(c, f.deps), /Missing reviewed/);
+      assert.equal(modelCalls, 0);
+      assert.equal(f.calls.some(args => ['preview', 'execute'].includes(args[1])), false);
+    }
+  }
+});
+
+test('empty, malformed or unavailable implementation slots and non-contract implementations fail closed', async () => {
+  for (const name of ['genesis', 'pool']) {
+    const target = name === 'genesis' ? address(3) : address(2);
+    for (const invalid of ['0x', hash(0), `0x01${'0'.repeat(22)}${address(6).slice(2)}`, 'unavailable', 'no-code']) {
+      const c = config();
+      let modelCalls = 0;
+      const f = fixture({ model: async () => { modelCalls++; return validateAnswer(colors, task.edges); } });
+      const priorSlot = f.deps.client.getStorageAt;
+      f.deps.client.getStorageAt = async args => {
+        if (args.address !== target || invalid === 'no-code') return priorSlot(args);
+        if (invalid === 'unavailable') throw new Error('implementation slot RPC unavailable');
+        return invalid;
+      };
+      f.deps.client.getCode = async ({ address: account }) => invalid === 'no-code' && account === c.deployment.proxies[name].implementationAddress ? '0x' : '0x6000';
+      await assert.rejects(mineOne(c, f.deps), /implementation slot|implementation code hash/);
+      assert.equal(modelCalls, 0);
+      assert.equal(f.calls.some(args => ['preview', 'execute'].includes(args[1])), false);
+    }
+  }
+});
+
+test('an unchanged proxy runtime hash cannot hide changed implementation code', async () => {
+  for (const name of ['genesis', 'pool']) {
+    const c = config();
+    const f = fixture();
+    f.deps.client.getCode = async ({ address: account }) => account === c.deployment.proxies[name].implementationAddress ? '0x6001' : '0x6000';
+    await assert.rejects(mineOne(c, f.deps), /implementation code hash mismatch/);
+    assert.equal(f.calls.some(args => ['preview', 'execute'].includes(args[1])), false);
+  }
+});
+
+test('uppercase equivalent deployment hashes verify without resetting consent, but different hashes still fail', async () => {
+  const c = config();
+  c.environment = 'production'; c.chainId = 56; c.authorization.chainId = 56;
+  c.deployment.localMocks = false;
+  c.deployment.verifiedIdentitySource = {
+    verified: true, chainId: 56, officialUrl: 'https://web3.binance.com/en/dev-docs/products/agentic-wallet/ai-pro',
+    verifiedAt: new Date(now).toISOString(), verificationEvidence: 'Test-only injected registry binding',
+    registryAddress: address(8), registryCodeHash: runtimeCodeHash,
+    adapterRegistryRead: { functionName: 'registry', abi: [{ type: 'function', name: 'registry', inputs: [], outputs: [{ type: 'address' }], stateMutability: 'view' }] },
+  };
+  const saved = { ...authorizationSession(c, null, now), completed: 1, spent: '250', startedAt: now - 10000 };
+  const upperHash = value => `0x${value.slice(2).toUpperCase()}`;
+  for (const key of Object.keys(c.deployment.codeHashes)) c.deployment.codeHashes[key] = upperHash(c.deployment.codeHashes[key]);
+  for (const name of ['genesis', 'pool']) c.deployment.proxies[name].implementationCodeHash = upperHash(c.deployment.proxies[name].implementationCodeHash);
+  c.deployment.verifiedIdentitySource.registryCodeHash = upperHash(runtimeCodeHash);
+  const f = fixture();
+  f.deps.client.getChainId = async () => 56;
+  const priorRead = f.deps.client.readContract;
+  f.deps.client.readContract = async args => args.functionName === 'registry' ? address(8) : priorRead(args);
+  await assert.doesNotReject(verifyDeployment(f.deps.client, c));
+  const resumed = authorizationSession(c, saved, now);
+  assert.equal(resumed.spent, 250n); assert.equal(resumed.completed, 1); assert.equal(resumed.startedAt, saved.startedAt);
+  const wrongHash = upperHash(keccak256('0x6001'));
+  const changes = [
+    ...Object.keys(c.deployment.codeHashes).map(key => invalid => { invalid.deployment.codeHashes[key] = wrongHash; }),
+    ...['genesis', 'pool'].map(name => invalid => { invalid.deployment.proxies[name].implementationCodeHash = wrongHash; }),
+    invalid => { invalid.deployment.verifiedIdentitySource.registryCodeHash = wrongHash; },
+  ];
+  for (const change of changes) {
+    const invalid = structuredClone(c); change(invalid);
+    await assert.rejects(verifyDeployment(f.deps.client, invalid), /code hash mismatch|registry binding\/code mismatch/);
+  }
+  assert.equal(f.calls.length, 0);
+});
+
+test('an implementation upgrade with the same task nonce stops before model, preview or execute', async () => {
+  for (const name of ['genesis', 'pool']) {
+    for (const stage of ['before-model', 'after-model', 'before-preview', 'after-preview', 'before-execute']) {
+      const c = config();
+      const target = name === 'genesis' ? address(3) : address(2);
+      let changed = stage === 'before-model', modelCalls = 0, settingsReads = 0, gasPriceReads = 0;
+      const f = fixture({ model: async () => {
+        modelCalls++;
+        if (stage === 'after-model') changed = true;
+        return validateAnswer(colors, task.edges);
+      } });
+      const priorSlot = f.deps.client.getStorageAt;
+      f.deps.client.getBlockNumber = async () => changed ? 11n : 10n;
+      f.deps.client.getStorageAt = async args => args.address === target && changed ? implementationWord(address(8)) : priorSlot(args);
+      f.deps.client.getGasPrice = async () => {
+        if (++gasPriceReads === 2 && stage === 'before-execute') changed = true;
+        return 2n;
+      };
+      const priorWallet = f.deps.wallet;
+      f.deps.wallet = async args => {
+        const result = await priorWallet(args);
+        if (args[1] === 'settings' && ++settingsReads === 2 && stage === 'before-preview') changed = true;
+        if (args[1] === 'preview' && stage === 'after-preview') changed = true;
+        return result;
+      };
+      await assert.rejects(mineOne(c, f.deps), /implementation changed or not reviewed/);
+      assert.equal(modelCalls, stage === 'before-model' ? 0 : 1);
+      assert.equal(f.calls.filter(args => args[1] === 'preview').length, ['after-preview', 'before-execute'].includes(stage) ? 1 : 0);
+      assert.equal(f.calls.filter(args => args[1] === 'execute').length, 0);
+    }
+  }
+});
+
+test('reviewing a new implementation cannot reuse the previous consent or reset its spending', () => {
+  const c = config();
+  const saved = { ...authorizationSession(c, null, now), completed: 1, spent: '250', startedAt: now - 10000 };
+  const reordered = structuredClone(c);
+  reordered.deployment.proxies = Object.fromEntries(Object.entries(reordered.deployment.proxies).reverse().map(([name, proxy]) => [name, { note: 'review annotation', implementationCodeHash: proxy.implementationCodeHash, implementationAddress: proxy.implementationAddress }]));
+  assert.equal(authorizationSession(reordered, saved, now).spent, 250n);
+  for (const name of ['genesis', 'pool']) {
+    for (const change of [{ implementationAddress: address(8) }, { implementationCodeHash: keccak256('0x6001') }]) {
+      const upgraded = structuredClone(c);
+      Object.assign(upgraded.deployment.proxies[name], change);
+      assert.throws(() => authorizationSession(upgraded, saved, now), /scope changed under the same consentId/);
+    }
+  }
+});
+
+test('task, proxy slot, implementation code and deployment bindings are read at one uncached block', async () => {
+  const f = fixture(), reads = [];
+  f.deps.client.getBlockNumber = async options => { assert.equal(options.cacheTime, 0); return 17n; };
+  for (const method of ['getCode', 'getStorageAt', 'readContract']) {
+    const prior = f.deps.client[method];
+    f.deps.client[method] = async args => { reads.push({ method, ...args }); return prior(args); };
+  }
+  assert.equal((await readTask(f.deps.client, config())).blockNumber, 17n);
+  assert.ok(reads.every(read => read.blockNumber === 17n));
+  const slots = reads.filter(read => read.method === 'getStorageAt');
+  assert.equal(slots.length, 2);
+  const expectedSlot = `0x${(BigInt(keccak256(new TextEncoder().encode('eip1967.proxy.implementation'))) - 1n).toString(16)}`;
+  assert.ok(slots.every(read => read.slot === expectedSlot));
+  assert.ok(reads.some(read => read.method === 'getCode' && read.address === address(6)));
+  assert.ok(reads.some(read => read.method === 'getCode' && read.address === address(7)));
+});
+
+test('unknown proxy upgrades leave pending and completed original/replacement history readable', async () => {
+  for (const mode of ['status', 'dry-run']) {
+    for (const field of ['inFlight', 'lastTransaction']) {
+      const f = fixture(), receipts = [];
+      f.deps.client.getStorageAt = async () => implementationWord(address(8));
+      f.deps.client.getTransactionReceipt = async ({ hash: transactionHash }) => { receipts.push(transactionHash); return { ...receipt(), transactionHash }; };
+      const saved = { [field]: { originalHash: hash(8), hash: hash(9), replacementReason: 'repriced' }, completed: 1, spent: '450' };
+      const result = await readConfiguredStatus(f.deps.client, config(), async () => saved, mode);
+      assert.match(result.deploymentError, /implementation changed or not reviewed/);
+      assert.equal(result.task, null);
+      assert.equal(result.previousSession, saved);
+      assert.equal(result.originalReceipt.transactionHash, hash(8));
+      assert.equal(result.replacementReceipt.transactionHash, hash(9));
+      assert.deepEqual(receipts, [hash(8), hash(9)]);
+      assert.equal(f.calls.length, 0);
+    }
+  }
+});
+
+test('an upgrade between status deployment verification and task read is still a deployment error', async () => {
+  const f = fixture();
+  let headReads = 0;
+  f.deps.client.getBlockNumber = async () => ++headReads === 1 ? 10n : 11n;
+  const priorSlot = f.deps.client.getStorageAt;
+  f.deps.client.getStorageAt = async args => args.blockNumber === 11n ? implementationWord(address(8)) : priorSlot(args);
+  f.deps.client.getTransactionReceipt = async () => receipt();
+  const saved = { inFlight: { hash: hash(8) }, completed: 0, spent: '0' };
+  const result = await readConfiguredStatus(f.deps.client, config(), async () => saved);
+  assert.match(result.deploymentError, /implementation changed or not reviewed/);
+  assert.equal(result.taskError, result.deploymentError);
+  assert.equal(result.task, null);
+  assert.equal(result.originalReceipt.transactionHash, hash(8));
+  assert.equal(result.previousSession, saved);
+  assert.equal(f.calls.length, 0);
 });

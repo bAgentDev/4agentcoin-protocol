@@ -14,7 +14,9 @@
   "contracts": {
     "genesis": {
       "address": "0x0000000000000000000000000000000000000000",
-      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "implementationAddress": "0x0000000000000000000000000000000000000000",
+      "implementationCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
     },
     "token": {
       "address": "0x0000000000000000000000000000000000000000",
@@ -22,7 +24,9 @@
     },
     "pool": {
       "address": "0x0000000000000000000000000000000000000000",
-      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "implementationAddress": "0x0000000000000000000000000000000000000000",
+      "implementationCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "identity": {
@@ -56,15 +60,15 @@
       "status": "passed_local_simulation_only",
       "sourceChainId": 56,
       "executionChainId": 31337,
-      "sourceBlockNumber": 131036262,
-      "sourceBlockHash": "0x7663b60a343875b0c73d9f0a9596379ea2687fa78fb3cd0965208640d62564fd",
+      "sourceBlockNumber": 131043736,
+      "sourceBlockHash": "0xe4c2a59724a178530e165ed59276c71e640009e2ada9cdddedd7a1387449ad92",
       "testsPassed": 8,
       "productionLiquidityVerified": false,
       "newPairAddressIsLocalOnly": true
     }
   },
   "expected": {
-    "deploymentMode": "constructor_non_upgradeable",
+    "deploymentMode": "uups_genesis_pool_fixed_token",
     "initialBaseRewardWei": "2100000000000000000",
     "imageURI": "https://4agentcoin.pages.dev/nft/genesis-miner.png",
     "mintOpen": false,
@@ -94,7 +98,7 @@
     "referenceGasQuote": {
       "chainId": 56,
       "rpc": "https://bsc-dataseed.bnbchain.org",
-      "blockNumber": 131036834,
+      "blockNumber": 131043307,
       "gasPriceWei": "50000000",
       "notFinalBroadcastQuote": true
     },
@@ -102,31 +106,40 @@
       "environment": "local_anvil",
       "chainId": 31337,
       "identity": "local_mock_not_production",
-      "scope": "three_core_creations_and_two_pool_bindings_only",
-      "constructorInputsDifferFromUnconfiguredProduction": true,
+      "scope": "two_implementations_two_initialized_proxies_fixed_token_and_two_pool_bindings",
+      "transactionsIncludeIntrinsicGas": true,
+      "initializationInputsDifferFromUnconfiguredProduction": true,
       "transactions": [
         {
-          "action": "deploy GenesisMiner",
-          "gasUsed": "4066666"
+          "action": "deploy GenesisMiner implementation",
+          "gasUsed": "4704850"
         },
         {
-          "action": "deploy FourAgentCoin",
-          "gasUsed": "1072122"
+          "action": "deploy and initialize GenesisMiner proxy",
+          "gasUsed": "447061"
         },
         {
-          "action": "deploy MiningPool",
-          "gasUsed": "1575249"
+          "action": "deploy fixed FourAgentCoin",
+          "gasUsed": "1072134"
         },
         {
-          "action": "GenesisMiner.setMiningPool",
-          "gasUsed": "52116"
+          "action": "deploy MiningPool implementation",
+          "gasUsed": "1848949"
+        },
+        {
+          "action": "deploy and initialize MiningPool proxy",
+          "gasUsed": "265017"
+        },
+        {
+          "action": "GenesisMiner proxy.setMiningPool",
+          "gasUsed": "56952"
         },
         {
           "action": "FourAgentCoin.setMiningPool",
           "gasUsed": "52094"
         }
       ],
-      "totalGasUsed": "6818247",
+      "totalGasUsed": "8447057",
       "excluded": [
         "production_identity_adapter_deployment",
         "pancake_pair_and_liquidity_initialization",
@@ -176,9 +189,9 @@
       "ammOnlyGasUsedExcludingDuplicateToken": "3599276"
     },
     "combinedKnownInitializationReference": {
-      "gasUsedReference": "10417523",
+      "gasUsedReference": "12046333",
       "gasPriceWeiScenario": "50000000",
-      "costWeiScenario": "520876150000000",
+      "costWeiScenario": "602316650000000",
       "mixedReferenceRunsNotOneProductionSimulation": true,
       "excluded": [
         "unknown_production_identity_adapter",
@@ -188,6 +201,17 @@
         "liquidity_principal"
       ],
       "notFinalBroadcastQuote": true
-    }
+    },
+    "status": "unverified_production_identity_adapter_and_final_transaction_estimates_pending"
+  },
+  "upgrade": {
+    "enabled": false,
+    "target": "",
+    "newImplementationAddress": "0x0000000000000000000000000000000000000000",
+    "newImplementationCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "callData": "0x",
+    "storageValidationReviewed": false,
+    "storageValidationReportPath": "./broadcast/upgrade-storage-validation.json",
+    "storageValidationReportHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
   }
 }

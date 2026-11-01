@@ -41,10 +41,10 @@ npx skills add bAgentDev/4agentcoin-protocol --skill 4agentcoin -g
 ## 共用执行流程
 
 1. 读[操作参考](references/operations.md)对应业务。资金签名一律使用官方 `binance-agentic-wallet` Skill 和 `baw`；不使用私钥、自建 viem 账户或后台代签。
-2. 核实链、RPC、地址、编译 ABI、代码及合约绑定。缺必要部署资料时说明缺项，停止相关写操作，不编造 selector、交易或收入。仅公开 mint、新增质押和提交工作证明需核实官方 Agent ID；NFT 市场、转移、代币操作、解押及历史查询不加身份门槛，身份撤销不锁住退出。
+2. 核实链、RPC、地址、编译 ABI、代码及合约绑定。GenesisMiner 与 MiningPool 使用 UUPS 代理，须同时核实代理代码、ERC1967 实现地址和已审阅的实现代码 hash；FourAgentCoin 保持固定合约。缺必要部署资料或发现未审阅升级时停止相关写操作，不编造 selector、交易或收入。仅公开 mint、新增质押和提交工作证明需核实官方 Agent ID；部署和管理的普通 EOA 不要求 Agent ID，NFT 市场、转移、代币操作、解押及历史查询不加身份门槛，身份撤销不锁住退出。
 3. 写操作检查官方 Developer Mode，成功 preview 后完整展示交易、风险、授权变化、费用与限价，取得本次明确确认，再以有效 `requestId` execute。下载、安装、阅读 Skill 或“开始工作”不自动豁免确认。
 4. Agent 持续工作必须先有用户明确给出的任务数、时间、gas 预算、池/链/钱包/NFT 范围和停止条件。只有用户明确同意跳过重复确认且授权覆盖此有界循环时，才逐项工作自动 execute；每项工作仍 preview。风险变化、App 确认、登录/额度错误或预览过期时暂停。不扩大到转账、无限授权或其他池。
-5. 提交工作前复读当前 seed、nonce、HP 和奖励报价，使用 `expectedNonce` 与用户的 `minGrossReward`；题目或条件变化就停止。已签名、广播或结果不明时保留待决记录，先查原 hash，不重发，也不删记录绕过去重。
+5. 每轮模型运行前、wallet preview 前和 execute 前，在同一区块复核代理实现、代码及绑定，并复读当前 seed、nonce、HP 和奖励报价，使用 `expectedNonce` 与用户的 `minGrossReward`；即使 nonce 不变，未审阅的实现变化也须停止，不能自动更新配置后继续原授权。已签名、广播或结果不明时保留待决记录，先查原 hash，不重发，也不删记录绕过去重。
 6. 用真实回执与匹配 `TaskSolved` 事件核实发奖。首笔成功发奖后才报告“已开始挖矿”。持续循环确实运行时报告“挖矿中”，并标注正在工作（`thinking`）、等待签名（`waitingapproval`）或待确认（`pending`）；只有模型实际运行时才展示 `thinking`。循环停止必须报告“已停止”。`status`/`dry-run` 或历史成功记录不证明循环仍在运行。
 
 ## 工作任务与本机运行器
@@ -66,6 +66,8 @@ node scripts/agent-miner.mjs run --config miner.local.json
 示例故意没有地址且授权关闭；按[配置和命令](references/operations.md#配置和命令)核实并配置后才运行。Codex CLI 适配器使用已登录宿主、只读沙箱和禁工具设置，无需另购项目模型服务；宿主许可、订阅与额度以实际结果为准。当前未做真实付费模型或 BAW 广播验收，其他模型宿主尚未实现。
 
 官方 BAW 不支持本地 31337 签名，本地 Mock 用于只读与注入测试。运行器不是永久后台服务；“停止工作”是让 Agent 停止本次已识别的本机进程，不是新增 `stop` 命令，也不撤回已广播交易或自动解押。停止后仍须核对待决交易，见[停止本机工作](references/operations.md#停止本机工作)。
+
+UUPS 升级权限由各代理的 Ownable2Step owner 管理，没有独立 ProxyAdmin。owner 能升级 NFT 与矿池逻辑；Token 的固定 cap 不代表矿池排放逻辑不可改变。当前数值和经济规则不变，新的实现须重新审阅并取得新的工作授权；提交前的复核不能保证待确认期间管理员不会升级。
 
 ## 机制与费用摘要
 

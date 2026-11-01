@@ -4,6 +4,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {GenesisMiner} from "../src/GenesisMiner.sol";
 import {FourAgentCoin} from "../src/FourAgentCoin.sol";
 import {MiningPool} from "../src/MiningPool.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /// @notice Production preparation with verified external configuration; every gate stays closed.
 /// @dev No private key is read. Any later broadcast requires an external user-controlled signer.
@@ -25,17 +26,21 @@ contract DeployProtocol is Script {
         address feeRecipient = vm.envAddress("PROTOCOL_FEE_RECIPIENT");
         uint256 initialReward = vm.envUint("PROTOCOL_INITIAL_BASE_REWARD");
         vm.startBroadcast(signer);
-        genesis = new GenesisMiner(c);
+        GenesisMiner genesisImplementation = new GenesisMiner();
+        genesis = GenesisMiner(address(new ERC1967Proxy(address(genesisImplementation), abi.encodeCall(GenesisMiner.initialize, (c, signer)))));
         token = new FourAgentCoin(lpRecipient, feeRecipient);
-        pool = new MiningPool(address(genesis), address(token), feeRecipient, initialReward);
+        MiningPool poolImplementation = new MiningPool();
+        pool = MiningPool(address(new ERC1967Proxy(address(poolImplementation), abi.encodeCall(MiningPool.initialize, (address(genesis), address(token), feeRecipient, initialReward, signer)))));
         genesis.setMiningPool(address(pool));
         token.setMiningPool(address(pool));
         vm.stopBroadcast();
         require(genesis.owner() == signer && token.owner() == signer && pool.owner() == signer, "Owner must be external signer");
         require(!genesis.mintOpen() && !genesis.stakingOpen() && !pool.miningOpen(), "Production gates must stay closed");
         console2.log("GenesisMiner", address(genesis));
+        console2.log("GenesisMinerImplementation", address(genesisImplementation));
         console2.log("FourAgentCoin", address(token));
         console2.log("MiningPool", address(pool));
+        console2.log("MiningPoolImplementation", address(poolImplementation));
         console2.log("ChainId", block.chainid);
         console2.log("Verify official adapter and configure LP pair/exemptions before manual opening");
     }

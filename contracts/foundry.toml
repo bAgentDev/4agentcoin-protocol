@@ -10,10 +10,14 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
 via_ir = true
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
 # One boundary test executes all 18,900 distinct public mints in a single test call.
 gas_limit = 10_000_000_000
 remappings = [
   "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+  "@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
   "forge-std/=lib/forge-std/src/"
 ]
 fs_permissions = [
