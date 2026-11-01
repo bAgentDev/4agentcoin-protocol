@@ -36,12 +36,12 @@ npx skills add bAgentDev/4agentcoin-protocol --skill 4agentcoin -g
 | 转账 4AGC | 把 1 4AGC 转到〈接收地址〉。 | [代币操作](references/operations.md#代币交易与追踪) |
 | 买入或卖出 4AGC | 用 0.01 BNB 买入 4AGC，滑点上限 1%；或卖出 10 4AGC，滑点上限 1%。 | [代币操作](references/operations.md#代币交易与追踪) |
 
-安装同一份 Skill 后，以上动作都使用同一套业务说明，无需按功能重复安装。Agent 按真实合约 ABI 和官方 Binance Agentic Wallet 执行；安装不代表合约已上线、钱包已授权或交易通道已可用。当前仍缺已核实的生产部署清单和官方 Agent ID 来源；相关写操作必须先完成下面的核验，Mock 仅用于显式本地环境。
+安装同一份 Skill 后，以上动作都使用同一套业务说明，无需按功能重复安装。Agent 按真实合约 ABI 和官方 Binance Agentic Wallet 执行；安装不代表合约已上线、钱包已授权或交易通道已可用。官方 Agent ID Registry 的来源、实码及稳定身份规则已核实，由 `BinanceAgentIdentityAdapter` 读取；项目适配器和核心合约的实际主网地址、代码及绑定仍须按部署清单和真实回执核验。Mock 仅用于显式本地环境，相关写操作先完成下面的核验。
 
 ## 共用执行流程
 
 1. 读[操作参考](references/operations.md)对应业务。资金签名一律使用官方 `binance-agentic-wallet` Skill 和 `baw`；不使用私钥、自建 viem 账户或后台代签。
-2. 核实链、RPC、地址、编译 ABI、代码及合约绑定。GenesisMiner 与 MiningPool 使用 UUPS 代理，须同时核实代理代码、ERC1967 实现地址和已审阅的实现代码 hash；FourAgentCoin 保持固定合约。缺必要部署资料或发现未审阅升级时停止相关写操作，不编造 selector、交易或收入。仅公开 mint、新增质押和提交工作证明需核实官方 Agent ID；部署和管理的普通 EOA 不要求 Agent ID，NFT 市场、转移、代币操作、解押及历史查询不加身份门槛，身份撤销不锁住退出。
+2. 核实链、RPC、地址、编译 ABI、代码及合约绑定。GenesisMiner 与 MiningPool 使用 UUPS 代理，须同时核实代理代码、ERC1967 实现地址和已审阅的实现代码 hash；FourAgentCoin 保持固定合约。缺必要部署资料或发现未审阅升级时停止相关写操作，不编造 selector、交易或收入。仅公开 mint、新增质押和提交工作证明需核实官方 Agent ID；核对适配器的 `registry()` 绑定与官方 Registry 实码，按官方 NFT tokenId 读取稳定身份，详见[身份与核验](references/operations.md#身份与核验)。查询失败须报告身份不可用，不能当作未注册。部署和管理的普通 EOA 不要求 Agent ID，NFT 市场、转移、代币操作、解押及历史查询不加身份门槛，身份查询故障不锁住退出。
 3. 写操作检查官方 Developer Mode，成功 preview 后完整展示交易、风险、授权变化、费用与限价，取得本次明确确认，再以有效 `requestId` execute。下载、安装、阅读 Skill 或“开始工作”不自动豁免确认。
 4. Agent 持续工作必须先有用户明确给出的任务数、时间、gas 预算、池/链/钱包/NFT 范围和停止条件。只有用户明确同意跳过重复确认且授权覆盖此有界循环时，才逐项工作自动 execute；每项工作仍 preview。风险变化、App 确认、登录/额度错误或预览过期时暂停。不扩大到转账、无限授权或其他池。
 5. 每轮模型运行前、wallet preview 前和 execute 前，在同一区块复核代理实现、代码及绑定，并复读当前 seed、nonce、HP 和奖励报价，使用 `expectedNonce` 与用户的 `minGrossReward`；即使 nonce 不变，未审阅的实现变化也须停止，不能自动更新配置后继续原授权。已签名、广播或结果不明时保留待决记录，先查原 hash，不重发，也不删记录绕过去重。
@@ -63,7 +63,7 @@ node scripts/agent-miner.mjs dry-run --config miner.local.json
 node scripts/agent-miner.mjs run --config miner.local.json
 ```
 
-示例故意没有地址且授权关闭；按[配置和命令](references/operations.md#配置和命令)核实并配置后才运行。Codex CLI 适配器使用已登录宿主、只读沙箱和禁工具设置，无需另购项目模型服务；宿主许可、订阅与额度以实际结果为准。当前未做真实付费模型或 BAW 广播验收，其他模型宿主尚未实现。
+配置示例不授予执行权限，用户钱包、NFT、会话授权和可支出预算须由用户明确给出；公开部署参数不能替代这些授权。按[配置和命令](references/operations.md#配置和命令)核实并配置后才运行。Codex CLI 适配器使用已登录宿主、只读沙箱和禁工具设置，无需另购项目模型服务；宿主许可、订阅与额度以实际结果为准。当前未做真实付费模型或 BAW 广播验收，其他模型宿主尚未实现。
 
 官方 BAW 不支持本地 31337 签名，本地 Mock 用于只读与注入测试。运行器不是永久后台服务；“停止工作”是让 Agent 停止本次已识别的本机进程，不是新增 `stop` 命令，也不撤回已广播交易或自动解押。停止后仍须核对待决交易，见[停止本机工作](references/operations.md#停止本机工作)。
 

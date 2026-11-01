@@ -1,7 +1,7 @@
 {
-  "environment": "local",
-  "chainId": 31337,
-  "rpcUrl": "http://127.0.0.1:8545",
+  "environment": "bsc",
+  "chainId": 56,
+  "rpcUrl": "https://bsc-dataseed.bnbchain.org",
   "walletAddress": null,
   "poolAddress": null,
   "genesisAddress": null,
@@ -17,14 +17,30 @@
       "pool": { "implementationAddress": null, "implementationCodeHash": null }
     },
     "verifiedIdentitySource": {
-      "verified": false,
-      "chainId": null,
-      "officialUrl": null,
-      "verifiedAt": null,
-      "verificationEvidence": null,
-      "registryAddress": null,
-      "registryCodeHash": null,
-      "adapterRegistryRead": { "abi": [], "functionName": null }
+      "verified": true,
+      "chainId": 56,
+      "officialUrl": "https://web3.binance.com/en/dev-docs/products/agentic-wallet/ai-pro#came-from-the-agent-id-campaign",
+      "verifiedAt": "2026-11-01T21:55:28+08:00",
+      "verificationEvidence": "Official Binance helper identifies OpenFour registry and preset 1778027615735. Core.tokens(KEEP) confirms the preset and trade module; local eth_call trace of official Tools.estimateBuy resolves 0x8238589B02cc9349bcd46e76981Ef2c8A16eC5a8 selector 0xbfa325ba to this Agent ID registry and calls balanceOf. Public holder succeeds; address 0x0000000000000000000000000000000000000123 fails with official NO_AGENT_ID selector 0x96ea0b74. Sourcify v2 exact creation/runtime match plus byte-for-byte current runtime verification establishes HandleRegistry ABI and permanent bare-handle tokenId semantics. No live project deployment or adapter binding is inferred from this source evidence.",
+      "registryAddress": "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F",
+      "registryCodeHash": "0xc4006e6e6ffaaf6996116617392beabe4f5f0a0795841322f91c2ceac34d6ace",
+      "adapterRegistryRead": {
+        "abi": [
+          {
+            "type": "function",
+            "name": "registry",
+            "stateMutability": "view",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address"
+              }
+            ]
+          }
+        ],
+        "functionName": "registry"
+      }
     }
   },
   "model": {
@@ -39,7 +55,7 @@
     "confirmedByUser": false,
     "mode": "single",
     "skipRepeatedConfirmations": false,
-    "chainId": 31337,
+    "chainId": 56,
     "poolAddress": null,
     "walletAddress": null,
     "tokenId": "0",
@@ -50,6 +66,6 @@
     "minGrossWei": "0",
     "expiresAt": null
   },
-  "stateFile": ".miner-state/session.local.json",
+  "stateFile": ".miner-state/session.bsc.json",
   "receiptTimeoutMs": 60000
 }

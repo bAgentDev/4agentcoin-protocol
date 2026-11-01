@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "enabled": false,
   "chainId": 56,
-  "status": "blocked_missing_verified_identity_and_deployed_contracts",
+  "status": "identity_adapter_implemented_and_verified_awaiting_local_signature_no_mainnet_deployment",
   "roles": {
     "admin": "0x4a395c91484544cec82424cc23af20239feea2d4",
     "reserveRecipient": "0x4a395c91484544cec82424cc23af20239feea2d4",
@@ -30,17 +30,177 @@
     }
   },
   "identity": {
-    "verified": false,
-    "stableAgentIdSemanticsVerified": false,
+    "verified": true,
+    "stableAgentIdSemanticsVerified": true,
     "adapterRegistryBindingVerified": false,
     "adapterAddress": "0x0000000000000000000000000000000000000000",
     "adapterCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "registryAddress": "0x0000000000000000000000000000000000000000",
-    "registryCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "adapterRegistrySelector": "0x00000000",
-    "officialSourceUrl": "",
-    "verificationEvidence": "",
-    "verifiedAt": ""
+    "registryAddress": "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F",
+    "registryCodeHash": "0xc4006e6e6ffaaf6996116617392beabe4f5f0a0795841322f91c2ceac34d6ace",
+    "adapterRegistrySelector": "0x7b103999",
+    "officialSourceUrl": "https://web3.binance.com/en/dev-docs/products/agentic-wallet/ai-pro#came-from-the-agent-id-campaign",
+    "verificationEvidence": "Official Binance helper identifies OpenFour registry and preset 1778027615735. Core.tokens(KEEP) confirms the preset and trade module; local eth_call trace of official Tools.estimateBuy resolves 0x8238589B02cc9349bcd46e76981Ef2c8A16eC5a8 selector 0xbfa325ba to this Agent ID registry and calls balanceOf. Public holder succeeds; address 0x0000000000000000000000000000000000000123 fails with official NO_AGENT_ID selector 0x96ea0b74. Sourcify v2 exact creation/runtime match plus byte-for-byte current runtime verification establishes HandleRegistry ABI and permanent bare-handle tokenId semantics. No live project deployment or adapter binding is inferred from this source evidence.",
+    "verifiedAt": "2026-11-01T21:55:28+08:00",
+    "registryAbi": [
+      {
+        "type": "function",
+        "name": "balanceOf",
+        "stateMutability": "view",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "name": "handleOf",
+        "stateMutability": "view",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "string"
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "name": "ownerOf",
+        "stateMutability": "view",
+        "inputs": [
+          {
+            "name": "tokenId",
+            "type": "uint256"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "name": "ownerOfHandle",
+        "stateMutability": "view",
+        "inputs": [
+          {
+            "name": "handle",
+            "type": "string"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "address"
+          }
+        ]
+      }
+    ],
+    "adapterAbi": [
+      {
+        "type": "function",
+        "name": "registry",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "name": "isEligible",
+        "stateMutability": "view",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "name": "agentIdOf",
+        "stateMutability": "view",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "bytes32"
+          }
+        ]
+      }
+    ],
+    "sourceVerification": {
+      "officialDocumentationUrl": "https://web3.binance.com/en/dev-docs/products/agentic-wallet/ai-pro#came-from-the-agent-id-campaign",
+      "officialHelperUrl": "https://github.com/binance/binance-skills-hub/blob/main/skills/binance-web3/binance-agentic-wallet/scripts/agent-id-exclusive-token-launches.mjs",
+      "sourceVerificationUrl": "https://sourcify.dev/server/v2/contract/56/0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F?fields=all",
+      "sourceContract": "src/HandleRegistry.sol:HandleRegistry",
+      "sourceSha256": "84d50d459b24ed083b9ac6c69bf1cbd27624483619ee18c75adf45532631b428",
+      "creationMatch": "exact_match",
+      "runtimeMatch": "exact_match",
+      "registryIsProxy": false,
+      "runtimeBytes": 8756,
+      "observedBlockNumber": 131060610,
+      "observedBlockHash": "0xc19b43f6c518f800282cd1f6988ea4bc2d8f5916c9b807fbeef7ce91d9946fb6",
+      "identityRule": "bytes32 official NFT tokenId = keccak256(bytes(bare handle)); no .ai suffix; never hash the wallet address",
+      "bindingRule": "one permanent handle per address; existing tokens cannot transfer, burn, rename or rebind",
+      "handleLengthRule": "Do not revalidate old identities against mutable current registration-length settings",
+      "officialGate": {
+        "openFourRegistry": "0x912cef0c3ae9ab6eb3ec87cab69371cfb317ab94",
+        "presetId": "1778027615735",
+        "discoveredToken": "0xb504d83caa309d613bdf3eec20588e49951affff",
+        "tradeModule": "0x7a009ec84a8db913729466fa0779c67a3f992478",
+        "identityConfig": "0x8238589B02cc9349bcd46e76981Ef2c8A16eC5a8",
+        "identityRegistryGetterSelector": "0xbfa325ba",
+        "observedBlockNumber": 131056180,
+        "observedBlockHash": "0xfafa278624f2cb030aba1378bd59738949c0d992642a8197d79578d71eb92e41"
+      },
+      "positiveSample": {
+        "address": "0x40329b72c0f6edb2196287d2ab535923a4743c50",
+        "bareHandle": "orcasai",
+        "tokenId": "0x121274cfd5956527c56dfd7d3d684dd8db977163eda94d39f8c9215eded00639"
+      },
+      "projectForkValidation": {
+        "sourceChainId": 56,
+        "executionChainId": 31337,
+        "sourceBlockNumber": 131061945,
+        "sourceBlockHash": "0xce92d1b6f39d0857c55699e11e3f69508abd02c359090fdaa558761eabfd6807",
+        "testsPassed": 7,
+        "actualRegistryReads": true,
+        "protocolTransactionsAreLocalOnly": true,
+        "productionTransactionsSent": false
+      },
+      "snapshotScope": "observedBlockNumber/hash describe registry runtime; officialGate and projectForkValidation retain their own observed blocks"
+    }
   },
   "pancake": {
     "verified": true,
@@ -60,8 +220,8 @@
       "status": "passed_local_simulation_only",
       "sourceChainId": 56,
       "executionChainId": 31337,
-      "sourceBlockNumber": 131043736,
-      "sourceBlockHash": "0xe4c2a59724a178530e165ed59276c71e640009e2ada9cdddedd7a1387449ad92",
+      "sourceBlockNumber": 131061945,
+      "sourceBlockHash": "0xce92d1b6f39d0857c55699e11e3f69508abd02c359090fdaa558761eabfd6807",
       "testsPassed": 8,
       "productionLiquidityVerified": false,
       "newPairAddressIsLocalOnly": true
@@ -92,9 +252,9 @@
   "budget": {
     "maxExclusiveDeploymentAndInitializationWei": "100000000000000000",
     "liquidityPrincipalIncluded": false,
-    "gasPriceWei": "0",
-    "estimatedTotalGas": "0",
-    "estimateVerified": false,
+    "gasPriceWei": "50000000",
+    "estimatedTotalGas": "13151843",
+    "estimateVerified": true,
     "referenceGasQuote": {
       "chainId": 56,
       "rpc": "https://bsc-dataseed.bnbchain.org",
@@ -200,9 +360,11 @@
         "manual_gate_changes",
         "liquidity_principal"
       ],
-      "notFinalBroadcastQuote": true
+      "notFinalBroadcastQuote": true,
+      "supersededByEightTransactionDeploymentSimulation": true
     },
-    "status": "unverified_production_identity_adapter_and_final_transaction_estimates_pending"
+    "status": "eight_transaction_mainnet_simulation_passed; no_broadcast_receipts; LP_initialization_budget_remains_separate",
+    "estimatedScope": "real identity adapter plus seven core deployment/binding transactions only; future LP actions estimated separately"
   },
   "upgrade": {
     "enabled": false,
@@ -213,5 +375,103 @@
     "storageValidationReviewed": false,
     "storageValidationReportPath": "./broadcast/upgrade-storage-validation.json",
     "storageValidationReportHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "deploymentPlan": {
+    "status": "simulated_not_broadcast",
+    "chainId": 56,
+    "administrator": "0x4a395c91484544cec82424cc23af20239feea2d4",
+    "expectedStartNonce": 0,
+    "transactionCount": 8,
+    "gasEstimateMultiplierPercent": 150,
+    "legacyGasPriceWei": "50000000",
+    "estimatedGasLimitTotal": "13151843",
+    "estimatedMaximumNetworkFeeWei": "657592150000000",
+    "allTransactionValuesWei": "0",
+    "liquidityPrincipalIncluded": false,
+    "productionTransactionsSent": false,
+    "addressesArePredictionsNotDeployments": true,
+    "scriptSha256": "0574dea3ae6f7ce16b8771c94002f245d4b9dd5c228ca6d23fa657954974a86f",
+    "transactions": [
+      {
+        "nonce": 0,
+        "action": "BinanceAgentIdentityAdapter",
+        "type": "CREATE",
+        "predictedAddress": "0xf9c3e5de50da00c9b35670b4418205b1a0527dbf",
+        "to": null,
+        "valueWei": "0",
+        "gasLimit": "470913",
+        "inputKeccak256": "0xee8f1b2e83acd1ae4e84499675281239c4f3991106a37457f873b6de81a51cdc"
+      },
+      {
+        "nonce": 1,
+        "action": "GenesisMiner",
+        "type": "CREATE",
+        "predictedAddress": "0xc6af5ebf9354259c99dfb3601f29ea433c77456e",
+        "to": null,
+        "valueWei": "0",
+        "gasLimit": "7057275",
+        "inputKeccak256": "0x1a1ad959e7dd520d7853e0432d361d099f2a9d2e7790670ab772c0cb9cea9b20"
+      },
+      {
+        "nonce": 2,
+        "action": "ERC1967Proxy",
+        "type": "CREATE",
+        "predictedAddress": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+        "to": null,
+        "valueWei": "0",
+        "gasLimit": "670699",
+        "inputKeccak256": "0xf5699377b8e8ffd0eadfca23aa2338cf4c17569e8420e62236bd583540bc9bef"
+      },
+      {
+        "nonce": 3,
+        "action": "FourAgentCoin",
+        "type": "CREATE",
+        "predictedAddress": "0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4",
+        "to": null,
+        "valueWei": "0",
+        "gasLimit": "1608201",
+        "inputKeccak256": "0x7fefe7ad226dd06b08064488ef4be167e243f744c7d32346c4d4520fc9254764"
+      },
+      {
+        "nonce": 4,
+        "action": "MiningPool",
+        "type": "CREATE",
+        "predictedAddress": "0x84c4c0293c01c0abeb52992c478ead352fcc67fe",
+        "to": null,
+        "valueWei": "0",
+        "gasLimit": "2773423",
+        "inputKeccak256": "0x7677674c0bc6047ce75c1475f837e5cfc1dbe8651ce6c6b0d5b6ba4ec54a32fa"
+      },
+      {
+        "nonce": 5,
+        "action": "ERC1967Proxy",
+        "type": "CREATE",
+        "predictedAddress": "0xa12a9112361bab1411e64891da7481deaf9cff59",
+        "to": null,
+        "valueWei": "0",
+        "gasLimit": "397543",
+        "inputKeccak256": "0xb33285bb82c6b4f06b0a984cc3a11e0609351d25fdd1e79b1b54c33941fab185"
+      },
+      {
+        "nonce": 6,
+        "action": "GenesisMiner.setMiningPool",
+        "type": "CALL",
+        "predictedAddress": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+        "to": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+        "valueWei": "0",
+        "gasLimit": "90766",
+        "inputKeccak256": "0x4d9ad850b9d9f689f5c5796d028dc268d183712f8a7e7c2941e58819e87d048c"
+      },
+      {
+        "nonce": 7,
+        "action": "FourAgentCoin.setMiningPool",
+        "type": "CALL",
+        "predictedAddress": "0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4",
+        "to": "0x1cfe1db3d89e6a995862baf6e6687cf0c7ee66f4",
+        "valueWei": "0",
+        "gasLimit": "83023",
+        "inputKeccak256": "0x4d9ad850b9d9f689f5c5796d028dc268d183712f8a7e7c2941e58819e87d048c"
+      }
+    ]
   }
 }

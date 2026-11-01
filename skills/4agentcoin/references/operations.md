@@ -1,6 +1,6 @@
 # 4AgentCoin Agent 工作量证明操作参考
 
-产品定位为 Agent 工作量证明（Agent Proof of Work）：Agent 完成工作任务、提交工作证明，合约验证工作结果并发放有效工作奖励。本地V1业务合约为GenesisMiner、MiningPool、FourAgentCoin。下述ABI名称对应本地源码，生产使用前必须匹配编译产物、代码和绑定。没有已核实的生产部署清单；项目身份适配器接口不是已核实的官方Registry ABI。缺必要配置就报告未开放，不编造交易。
+产品定位为 Agent 工作量证明（Agent Proof of Work）：Agent 完成工作任务、提交工作证明，合约验证工作结果并发放有效工作奖励。V1业务合约为GenesisMiner、MiningPool、FourAgentCoin，`BinanceAgentIdentityAdapter` 连接已核实的官方身份 Registry。下述ABI名称对应源码，生产使用前必须匹配实际编译产物、代码和绑定。身份源已经核实，项目适配器及核心合约的主网部署与绑定尚待完成；缺必要配置就报告未开放，不编造交易。
 
 ## 操作入口与支持边界
 
@@ -23,11 +23,17 @@
 
 ### 身份与核验
 
-读取RPC chain ID、完整地址、代码和匹配ABI。GenesisMiner、MiningPool 使用 UUPS/ERC1967 代理，业务地址始终使用代理地址；同一区块核对代理运行时代码 hash、标准 ERC1967 implementation slot 中的地址及已审阅的 implementation 代码 hash，不能仅凭代理 hash 未变认定逻辑未变。FourAgentCoin 保持固定合约，发奖后的 miningPool 绑定锁仍指向稳定的 Pool 代理。`GenesisMiner.identityVerifier()`返回项目适配器，其 `isEligible(address)` 与 `agentIdOf(address)->bytes32` 定义项目接口。另核实官方Registry的出处、链、真实ABI、资格和稳定ID语义，以及adapter真实绑定。钱包品牌、CLI声明或普通签名不证明资格。
+读取RPC chain ID、完整地址、代码和匹配ABI。GenesisMiner、MiningPool 使用 UUPS/ERC1967 代理，业务地址始终使用代理地址；同一区块核对代理运行时代码 hash、标准 ERC1967 implementation slot 中的地址及已审阅的 implementation 代码 hash，不能仅凭代理 hash 未变认定逻辑未变。FourAgentCoin 保持固定合约，发奖后的 miningPool 绑定锁仍指向稳定的 Pool 代理。`GenesisMiner.identityVerifier()`返回真实部署的 `BinanceAgentIdentityAdapter`；以实际代码hash核实适配器，再调用其无参 `registry()->address` getter核对固定来源。钱包品牌、CLI声明或普通签名不证明资格。
+
+官方Registry为BSC `0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F`（SPACE ID Agent ID，非代理）；已核对运行码keccak256为 `0xc4006e6e6ffaaf6996116617392beabe4f5f0a0795841322f91c2ceac34d6ace`。来源证据包括[币安官方FAQ](https://web3.binance.com/en/dev-docs/products/agentic-wallet/ai-pro#came-from-the-agent-id-campaign)、[官方Skill的交易模块定位](https://github.com/binance/binance-skills-hub/blob/main/skills/binance-web3/binance-agentic-wallet/references/agent-id-exclusive-token-launches.md)、该模块实际查询Registry的链上调用链，以及[实码精确匹配的源码](https://sourcify.dev/server/v2/contract/56/0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F?fields=all)。FAQ本身不提供Registry地址；完整绑定快照、区块/hash与项目实际部署状态以已复核的BSC部署清单为准。发现来源或实码不符时停止准入相关操作，不自动换用新地址。
+
+Registry的 `handleOf(address)->string` 返回不带 `.ai` 的裸handle，`ownerOfHandle(string)->address` 和 `ownerOf(uint256)->address` 可回读持有人；`balanceOf(address)`反映身份持有。官方tokenId为 `uint256(keccak256(bytes(handle)))`，适配器的 `agentIdOf(address)->bytes32` 使用同一ID，`isEligible(address)`按同一读取结果判断资格。不能hash钱包地址、自填名称或把 `.ai` 后缀加入hash。空handle且确无身份返回无资格；上游查询失败、无代码或持有人/名称不一致报告身份不可用，不能伪装成未注册。
+
+已验证源码每地址只允许注册一次，已有身份不可转移、销毁、改名、换绑或撤销。官方可调整新注册名称的长度上下限，不能用FAQ的3–15字符或当前链上长度限制重新筛选已有ID。该适配全程链上读取，无项目身份服务器；核实Registry不代表项目合约已经部署，也不授予钱包或工作授权。
 
 各代理通过 Ownable2Step owner 控制管理与 UUPS 升级，没有独立 ProxyAdmin；部署人、管理员和 LP 资金账户可以是普通 EOA，不因这些角色要求 Agent ID。owner 能改变 NFT/矿池实现，固定 Token cap 不保证矿池排放规则不可变；本次采用的数值与经济规则不变。管理员升级后须重新审阅实现与权限，不能自动把运行配置替换成链上新实现或沿用旧实现的工作授权。提交前复核也不能锁住待确认期间的管理员升级。
 
-官方资格适用于公开mint、新质押、每次提交工作证明。新质押绑定稳定Agent ID，身份撤销或变更阻止新的工作证明/质押，仍可退出、NFT市场、转移、代币操作和查历史。尽量在同一已知区块读取所有权、HP、质押、nonce、奖励和订单，交易前复读；价格变化用minGross/expectedPrice等链上条件保护。
+官方资格适用于公开mint、新质押、每次提交工作证明。新质押绑定官方tokenId；身份查询故障或与质押时ID不一致时停止新的工作证明/质押，仍可退出、NFT市场、转移、代币操作和查历史。尽量在同一已知区块读取所有权、HP、质押、nonce、奖励和订单，交易前复读；价格变化用minGross/expectedPrice等链上条件保护。
 
 ### 配置和命令
 
@@ -40,7 +46,7 @@
 | deployment.verified/identityVerifier/codeHashes | pool/genesis 为代理运行时代码keccak256，token/identityVerifier 为现有固定Token/adapter代码hash；同时核验合约互绑、16/4常量、六位HP、18位4AGC与3%任务费 |
 | deployment.proxies.genesis / deployment.proxies.pool | 每项均必需 implementationAddress、implementationCodeHash；来自已独立审阅的实际实现，不能为未知升级自动填值。读取标准ERC1967 slot并在同一区块核地址、实现代码与代理代码；空slot、非合约实现、缺值或不匹配均阻断新的工作 |
 | deployment.localMocks | 只可在明确local、31337为true；只用于read/dry-run和注入测试，官方BAW不签本地链 |
-| deployment.verifiedIdentitySource | live必需：verified、chainId、officialUrl、verifiedAt、verificationEvidence、registryAddress、registryCodeHash及adapterRegistryRead的实际abi/functionName。该读取必须来自真实adapter ABI，无参只读返回address；回链核对Registry绑定，不能猜getter |
+| deployment.verifiedIdentitySource | live必需：verified、chainId、officialUrl、verifiedAt、verificationEvidence、registryAddress、registryCodeHash及adapterRegistryRead。officialUrl使用上述币安FAQ的 `web3.binance.com` 地址，GitHub/Sourcify和链上取证写入verificationEvidence。真实适配器ABI为 `function registry() view returns (address)`，functionName为 `registry`；回链核对固定Registry绑定，不能仅把verified改true |
 | model | 只实现provider=codex；真实binary、automationAuthorized=true、timeoutMs为1000–600000、maxAttempts为1–3 |
 | authorization | 用户明确确认后生成并记录唯一consentId(UUID)、confirmedByUser、single/bounded、poolAddress/chainId/walletAddress/tokenId、maxTasks、maxDurationSeconds、maxGasWei、maxGasPerTaskWei、正数minGrossWei、ISO格式expiresAt；缺项不能run |
 | skipRepeatedConfirmations | 仅用户明确跳过重复确认且授权覆盖此有界循环才设true；不授权其他资金动作 |
@@ -68,13 +74,13 @@ gas守卫按RPC estimateGas×gasPrice×2预留，检查每次工作和剩余预�
 
 用户已登录且允许自动化的Codex CLI通过 `exec --json --sandbox read-only --ephemeral --ignore-user-config` 在临时空目录运行；禁shell、Apps、插件、浏览器、多Agent等工具。prompt用stdin，`shell:false`；JSONL最终消息须为严格JSON数组的16个0–3整数。参考[官方非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode)与[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。不请求API key、不提取登录文件/token，订阅和许可取决于宿主实际规则，不保证免费或无限额度。
 
-当前适配器只核对本机help/features和注入事件测试，未真实消耗用户模型额度；其他宿主尚未实现。只有完整模型消息的格式/约束错误可在maxAttempts内重试；登录、额度、进程错误和超时直接暂停。不换provider、不买额度、不用本地solver。只检查提交的工作结果赋值，不搜索、修复或枚举其他结果。
+当前Codex模型适配器只核对本机help/features和注入事件测试，未真实消耗用户模型额度；其他宿主尚未实现。只有完整模型消息的格式/约束错误可在maxAttempts内重试；登录、额度、进程错误和超时直接暂停。不换provider、不买额度、不用本地solver。只检查提交的工作结果赋值，不搜索、修复或枚举其他结果。
 
 ## 创世铸造与算力
 
 总量21,000，预留2,100、公开18,900。reservedAllocated+publicMinted为分配进度；预留计进度、不计收入，初始不质押，固定150.000000HP。包括管理员的现持有人按相同资格规则质押后可完成工作任务，持有/质押本身没有奖励。
 
-`mintBatch(quantity,salt)` 数量1–21、salt为bytes32；每台0.0021BNB，value=quantity×2100000000000000 wei。先核对mintOpen、剩余总量、余额和稳定Agent ID终身额度：每ID公开累计≤21，转出NFT、换绑钱包不恢复额度。`mint(bytes32)`是一台的兼容入口。
+`mintBatch(quantity,salt)` 数量1–21、salt为bytes32；每台0.0021BNB，value=quantity×2100000000000000 wei。先核对mintOpen、剩余总量、余额和稳定Agent ID终身额度：每ID公开累计≤21，转出NFT、解押或重新质押不恢复额度；当前官方ID不可换绑。`mint(bytes32)`是一台的兼容入口。
 
 单批1–10台bonusBps=300，11–20为600，21为1000；加成在本批铸造计算前锁定，不是高HP概率，也不是最终HP直接加百分比。偏低分布：Q=1e18，u=entropy%(Q+1)，r=floor(u*u/Q)，adjusted=floor(r*(10000+bps)*Q/(10000*Q+bps*r))，HPmicro=50e6+floor(200e6*adjusted/Q)。最终50–250HP、六位精度。同一稳定ID公开终身结果不重复；碰撞增加1microHP、超过250时回到50继续查重，最多21探测；端点回绕可能大幅降低该结果。预留不参与公开去重。
 
