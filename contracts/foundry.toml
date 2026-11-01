@@ -16,7 +16,13 @@ remappings = [
   "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
   "forge-std/=lib/forge-std/src/"
 ]
-fs_permissions = [{ access = "read-write", path = "./broadcast" }]
+fs_permissions = [
+  { access = "read-write", path = "./broadcast" },
+  { access = "read", path = "../config/deployments.bsc.json" }
+]
+
+[profile.bsc_fork]
+test = "fork"
 
 [fuzz]
 runs = 256

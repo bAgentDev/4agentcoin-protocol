@@ -52,6 +52,40 @@ The current contract regression suite has 54 tests. These commands require no wa
 
 Deployment and local demonstration scripts are included under `contracts/script/`. Building a script does not execute or broadcast it. Production scripts keep protocol gates closed and require independently verified identity and metadata inputs; their presence does not mean production prerequisites are complete.
 
+## BSC deployment preparation
+
+An ordinary EOA can deploy and administer the contracts. The deployer, revenue recipient and LP treasury do not need an Agent ID. Agent identity is required only for public minting, new staking and work submissions. Keep signing keys and passwords in a user-controlled local signer; these scripts never read them.
+
+The public [BSC manifest](config/deployments.bsc.json) is disabled. Core deployment and identity addresses, transaction amounts and deadlines are intentionally unset. Its reviewed PancakeSwap addresses and code hashes do not establish project liquidity or official identity readiness. The current contracts remain constructor-based and non-upgradeable.
+
+From `contracts/`, after independently verifying the actual deployment and reviewing the manifest, the read-only check is:
+
+```sh
+forge script script/VerifyDeployment.s.sol:VerifyDeployment --rpc-url "$BSC_RPC_URL"
+```
+
+The default manifest must stop with `BLOCKED: deployment manifest is disabled`. The checker never broadcasts. `expected.requirePair=false` explicitly leaves LP acceptance incomplete; after funding, record the real Pair address/hash and a positive reviewed LP minimum before requiring Pair verification. Update the expected treasury exemption if it is removed.
+
+`BootstrapLiquidity.s.sol` supports one manually selected action per invocation: `withdrawLP`, `withdrawOperations`, `createPair`, `registerPair`, `approve`, `addLiquidity`, `revokeApproval`, or `removeTreasuryExemption`. For example, the following is a simulation only:
+
+```sh
+SIGNER_ADDRESS="$DEPLOYER_ADDRESS" BOOTSTRAP_ACTION=createPair \
+  forge script script/BootstrapLiquidity.s.sol:BootstrapLiquidity --rpc-url "$BSC_RPC_URL"
+```
+
+The administrator performs revenue withdrawals, Pair registration and exemption changes; the LP treasury performs its own approval and funding. Roles may use different addresses. The 50/50 sale budgets are actual collected revenue, not prepaid BNB. Review explicit amounts, minima, deadline and LP share recipient. Record and verify a newly created Pair before the next step. Approval is exact, and the Pair must not be tax-exempt. Every action preserves the business gates. No example here broadcasts; any later broadcast needs a separately reviewed transaction and the user's local signer. Script postconditions run in Foundry simulation. Empty-Pair and minimum-LP-share checks are not encoded as additional guards in the Router call; the Router enforces its amount minima and deadline. After a real transaction, independently check the receipt, balances, reserves, LP shares and remaining allowance through the RPC and read-only verifier.
+
+Real PancakeSwap V2 fork tests are separate from the default 54-test suite and ordinary CI:
+
+```sh
+BSC_RPC_URL="https://your-reviewed-bsc-rpc" BSC_FORK_BLOCK_NUMBER="your-reviewed-block" \
+  FOUNDRY_PROFILE=bsc_fork forge test --match-contract PancakeV2ForkTest -vv
+```
+
+Set a reachable BSC mainnet RPC and an explicit block with available historical state. The test checks source chain 56, records the source block/hash, and performs transactions only inside the local EVM on chain 31337 with synthetic balances. Missing RPC/block or unavailable state is an uncompleted fork check, not a pass. Fork success does not authenticate the project's pending Agent ID adapter or authorize production transactions. No paid service is required by these files.
+
+The recorded local V2 fork passed 8 tests at source block `131036262`. A separate local Anvil run at source block `131037002` measured Token deployment, Pair creation, registration, exact approval and LP funding: 4,671,386 gas used across five local transactions, of which 3,599,276 is the four AMM steps excluding the duplicate Token deployment. The manifest keeps the per-transaction estimates and receipts as local references. No production BNB was spent; the production identity adapter and other unmeasured operations remain outside this reference, so `budget.estimateVerified` stays false.
+
 ## Test the Skill
 
 From the repository root:

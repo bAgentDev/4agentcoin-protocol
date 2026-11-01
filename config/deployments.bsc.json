@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "chainId": 56,
+  "status": "blocked_missing_verified_identity_and_deployed_contracts",
+  "roles": {
+    "admin": "0x4a395c91484544cec82424cc23af20239feea2d4",
+    "reserveRecipient": "0x4a395c91484544cec82424cc23af20239feea2d4",
+    "feeRecipient": "0x4a395c91484544cec82424cc23af20239feea2d4",
+    "operationsTreasury": "0x4a395c91484544cec82424cc23af20239feea2d4",
+    "lpTreasury": "0x4a395c91484544cec82424cc23af20239feea2d4",
+    "lpTokenRecipient": "0x4a395c91484544cec82424cc23af20239feea2d4"
+  },
+  "contracts": {
+    "genesis": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "token": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "pool": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "codeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "identity": {
+    "verified": false,
+    "stableAgentIdSemanticsVerified": false,
+    "adapterRegistryBindingVerified": false,
+    "adapterAddress": "0x0000000000000000000000000000000000000000",
+    "adapterCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "registryAddress": "0x0000000000000000000000000000000000000000",
+    "registryCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "adapterRegistrySelector": "0x00000000",
+    "officialSourceUrl": "",
+    "verificationEvidence": "",
+    "verifiedAt": ""
+  },
+  "pancake": {
+    "verified": true,
+    "router": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+    "factory": "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73",
+    "wBNB": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    "pair": "0x0000000000000000000000000000000000000000",
+    "routerCodeHash": "0x69aef35de7236f9ae83edadff736f01ea40edd8919b2e73d87dea5d3255b8c3e",
+    "factoryCodeHash": "0x9e8d17faaee69b053be6ac65b2b2c317741d770cb5fbdd9512536d17e9e076ca",
+    "wBNBCodeHash": "0xb7d84205eaaf83ce7b3940c6beaad6d22790255e34a9a2b486aa8cdfff118fe6",
+    "pairCodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "officialSourceUrl": "https://developer.pancakeswap.finance/contracts/v2/addresses",
+    "verificationEvidence": "Official BSC V2 addresses; Router.factory() and Router.WETH() read on chain 56; runtime hashes read at observedBlockNumber. This does not verify liquidity.",
+    "observedBlockNumber": 131035206,
+    "observedBlockHash": "0x5fff3903aba00b2c39625fd4d5d0754f9e7bf1f9b765f66129d8f333737960b0",
+    "forkValidation": {
+      "status": "passed_local_simulation_only",
+      "sourceChainId": 56,
+      "executionChainId": 31337,
+      "sourceBlockNumber": 131036262,
+      "sourceBlockHash": "0x7663b60a343875b0c73d9f0a9596379ea2687fa78fb3cd0965208640d62564fd",
+      "testsPassed": 8,
+      "productionLiquidityVerified": false,
+      "newPairAddressIsLocalOnly": true
+    }
+  },
+  "expected": {
+    "deploymentMode": "constructor_non_upgradeable",
+    "initialBaseRewardWei": "2100000000000000000",
+    "imageURI": "https://4agentcoin.pages.dev/nft/genesis-miner.png",
+    "mintOpen": false,
+    "stakingOpen": false,
+    "miningOpen": false,
+    "lpTreasuryTaxExempt": true,
+    "requirePair": false,
+    "minimumLPBalanceWei": "0"
+  },
+  "bootstrap": {
+    "amountTokenWei": "0",
+    "amountBNBWei": "0",
+    "minTokenWei": "0",
+    "minBNBWei": "0",
+    "minimumLiquidityWei": "0",
+    "deadline": 0,
+    "expectedPairEmpty": true,
+    "lpWithdrawalWei": "0",
+    "operationsWithdrawalWei": "0"
+  },
+  "budget": {
+    "maxExclusiveDeploymentAndInitializationWei": "100000000000000000",
+    "liquidityPrincipalIncluded": false,
+    "gasPriceWei": "0",
+    "estimatedTotalGas": "0",
+    "estimateVerified": false,
+    "referenceGasQuote": {
+      "chainId": 56,
+      "rpc": "https://bsc-dataseed.bnbchain.org",
+      "blockNumber": 131036834,
+      "gasPriceWei": "50000000",
+      "notFinalBroadcastQuote": true
+    },
+    "referenceCoreDeployment": {
+      "environment": "local_anvil",
+      "chainId": 31337,
+      "identity": "local_mock_not_production",
+      "scope": "three_core_creations_and_two_pool_bindings_only",
+      "constructorInputsDifferFromUnconfiguredProduction": true,
+      "transactions": [
+        {
+          "action": "deploy GenesisMiner",
+          "gasUsed": "4066666"
+        },
+        {
+          "action": "deploy FourAgentCoin",
+          "gasUsed": "1072122"
+        },
+        {
+          "action": "deploy MiningPool",
+          "gasUsed": "1575249"
+        },
+        {
+          "action": "GenesisMiner.setMiningPool",
+          "gasUsed": "52116"
+        },
+        {
+          "action": "FourAgentCoin.setMiningPool",
+          "gasUsed": "52094"
+        }
+      ],
+      "totalGasUsed": "6818247",
+      "excluded": [
+        "production_identity_adapter_deployment",
+        "pancake_pair_and_liquidity_initialization",
+        "liquidity_principal",
+        "future_manual_gate_transactions"
+      ]
+    },
+    "referencePancakeInitialization": {
+      "environment": "local_anvil_fork",
+      "sourceChainId": 56,
+      "executionChainId": 31337,
+      "sourceBlockNumber": 131037002,
+      "sourceBlockHash": "0xed6295e3abb0856d28bba52af04a43cab4a4a44aa428184383f84a40e469a6f2",
+      "transactionsIncludeIntrinsicGas": true,
+      "localEffectiveGasPriceWei": "0",
+      "productionTransactionsSent": false,
+      "transactions": [
+        {
+          "action": "deploy FourAgentCoin",
+          "gasEstimate": "1072110",
+          "gasUsed": "1072110"
+        },
+        {
+          "action": "PancakeFactory.createPair",
+          "gasEstimate": "3248159",
+          "gasUsed": "3248159"
+        },
+        {
+          "action": "FourAgentCoin.setAMMPair",
+          "gasEstimate": "50433",
+          "gasUsed": "50433"
+        },
+        {
+          "action": "FourAgentCoin.approve exact amount",
+          "gasEstimate": "45981",
+          "gasUsed": "45981"
+        },
+        {
+          "action": "PancakeRouter.addLiquidityETH",
+          "gasEstimate": "291257",
+          "gasUsed": "254703"
+        }
+      ],
+      "totalGasEstimate": "4707940",
+      "totalGasUsed": "4671386",
+      "ammOnlyGasEstimateExcludingDuplicateToken": "3635830",
+      "ammOnlyGasUsedExcludingDuplicateToken": "3599276"
+    },
+    "combinedKnownInitializationReference": {
+      "gasUsedReference": "10417523",
+      "gasPriceWeiScenario": "50000000",
+      "costWeiScenario": "520876150000000",
+      "mixedReferenceRunsNotOneProductionSimulation": true,
+      "excluded": [
+        "unknown_production_identity_adapter",
+        "sale_revenue_withdrawals",
+        "optional_approval_revocation_and_treasury_exemption_removal",
+        "manual_gate_changes",
+        "liquidity_principal"
+      ],
+      "notFinalBroadcastQuote": true
+    }
+  }
+}
