@@ -41,10 +41,14 @@ const bigint = (x, field) => {
 const json = (x) => JSON.stringify(x, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2);
 const emit = (state, details = {}) => console.log(json({ state, ...details }));
 
-export function checkConfig(c) {
+function checkRpcConfig(c) {
   if (!Number.isSafeInteger(c.chainId) || c.chainId <= 0) throw new Error('Missing chainId');
   const rpc = new URL(c.rpcUrl);
   if (!['http:', 'https:'].includes(rpc.protocol) || rpc.username || rpc.password) throw new Error('Invalid RPC URL');
+}
+
+export function checkConfig(c) {
+  checkRpcConfig(c);
   for (const k of ['walletAddress', 'poolAddress', 'genesisAddress', 'tokenAddress']) {
     if (!isAddress(c[k] ?? '') || same(c[k], zeroAddress)) throw new Error(`Missing verified ${k}`);
   }
@@ -68,7 +72,7 @@ export function checkConfig(c) {
 
 export function checkAuthorization(c, now = Date.now()) {
   const a = c.authorization;
-  if (!a?.confirmedByUser) throw new Error('User authorization is required');
+  if (a?.confirmedByUser !== true) throw new Error('User authorization is required');
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.consentId ?? '')) throw new Error('An explicit user-authorized consentId UUID is required');
   if (!['single', 'bounded'].includes(a.mode)) throw new Error('Invalid authorization mode');
   if (!same(a.poolAddress, c.poolAddress) || !same(a.walletAddress, c.walletAddress) || a.chainId !== c.chainId || String(a.tokenId) !== String(c.tokenId)) throw new Error('Authorization scope mismatch');
@@ -294,25 +298,153 @@ export async function mineOne(c, deps) {
   // execute result blocks resubmission until the original request is reconciled.
   if (result.status === 'PENDING_CONFIRMATION') return { state: 'waitingapproval', orderId: result.orderId, requestId: preview.requestId, reserved: finalReservation };
   if (!/^0x[0-9a-fA-F]{64}$/.test(result.txHash ?? '')) throw new Error('Execute returned no transaction hash; reconcile original request; do not resubmit');
-  await deps.onBroadcast?.({ hash: result.txHash, requestId: preview.requestId, nonce: before.nonce, reservation: finalReservation });
+  let tracking = { hash: result.txHash, originalHash: result.txHash, requestId: preview.requestId, nonce: before.nonce, reservation: finalReservation };
+  let trackingError;
+  let trackingWrites = Promise.resolve();
+  const track = update => {
+    tracking = { ...tracking, ...update };
+    const snapshot = { ...tracking };
+    // viem does not await onReplaced. Queue writes in order and observe any
+    // persistence failure before returning a receipt or a pending result.
+    trackingWrites = trackingWrites.then(() => deps.onBroadcast?.(snapshot)).catch(error => { trackingError ??= error; });
+    return trackingWrites;
+  };
+  await track({});
+  if (trackingError) throw trackingError;
   notify('pending', { hash: result.txHash });
   let receipt;
-  try { receipt = await client.waitForTransactionReceipt({ hash: result.txHash, timeout: Math.min(c.receiptTimeoutMs ?? 60000, 60000) }); }
-  catch { return { state: 'pending', hash: result.txHash, requestId: preview.requestId, nonce: before.nonce, reserved: finalReservation }; }
-  const reward = confirmedReward(receipt, c, before.nonce);
-  return { state: 'success', hash: result.txHash, reward, gasWei: receipt.gasUsed * receipt.effectiveGasPrice };
+  try {
+    receipt = await client.waitForTransactionReceipt({
+      hash: result.txHash, timeout: Math.min(c.receiptTimeoutMs ?? 60000, 60000),
+      onReplaced: ({ reason, transaction, transactionReceipt }) => {
+        const hash = transactionReceipt?.transactionHash ?? transaction?.hash;
+        if (!/^0x[0-9a-fA-F]{64}$/.test(hash ?? '')) {
+          trackingError ??= new Error('Replacement returned no transaction hash; reconcile the original request');
+          return;
+        }
+        track({ hash, replacementReason: reason ?? 'replaced' });
+      },
+    });
+  } catch {
+    await trackingWrites;
+    if (trackingError) throw trackingError;
+    return { state: 'pending', ...tracking, reserved: finalReservation };
+  }
+  await trackingWrites;
+  if (trackingError) throw trackingError;
+  const actualHash = receipt.transactionHash;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(actualHash ?? '')) throw new Error('Receipt has no transaction hash; reconcile the original request');
+  const hashChangedWithoutNotice = !same(actualHash, tracking.hash);
+  const gasWei = receipt.gasUsed * receipt.effectiveGasPrice;
+  await track({ hash: actualHash, gasWei, receiptStatus: receipt.status, ...(hashChangedWithoutNotice ? { replacementReason: 'replaced' } : {}) });
+  if (trackingError) throw trackingError;
+  if (hashChangedWithoutNotice) {
+    // If a transport supplies a different receipt without onReplaced, identify
+    // its actual call before attributing it to the authorized task.
+    try {
+      const transaction = await client.getTransaction({ hash: actualHash });
+      if (same(transaction.from, c.walletAddress) && same(transaction.to, c.poolAddress) && transaction.value === 0n && transaction.input === inputData) {
+        await track({ replacementReason: 'repriced' });
+      }
+    } catch (error) {
+      await track({ replacementCheckError: error.message });
+    }
+  }
+  if (trackingError) throw trackingError;
+  if (tracking.replacementReason && tracking.replacementReason !== 'repriced') {
+    return { state: 'stopped', ...tracking, transactionState: tracking.replacementReason, error: 'The task transaction was cancelled or replaced by a different call' };
+  }
+  try {
+    return { state: 'success', ...tracking, reward: confirmedReward(receipt, c, before.nonce) };
+  } catch (error) {
+    return { state: 'stopped', ...tracking, transactionState: receipt.status === 'reverted' ? 'reverted' : 'unconfirmed', error: error.message };
+  }
 }
 
-export async function readStatus(client, c, saved, mode = 'status') {
-  let originalReceipt = null;
-  if (saved?.inFlight?.hash) {
-    try { originalReceipt = await client.getTransactionReceipt({ hash: saved.inFlight.hash }); }
-    catch { originalReceipt = { state: 'pending-or-unavailable', hash: saved.inFlight.hash }; }
+export async function readStatus(client, c, saved, mode = 'status', deploymentError = null) {
+  const tracked = saved?.inFlight ?? saved?.lastTransaction;
+  const originalHash = tracked?.originalHash ?? tracked?.hash;
+  const getReceipt = async hash => {
+    if (!hash) return null;
+    try { return await client.getTransactionReceipt({ hash }); }
+    catch { return { state: 'pending-or-unavailable', hash }; }
+  };
+  const originalReceipt = await getReceipt(originalHash);
+  const replacementReceipt = tracked?.hash && !same(tracked.hash, originalHash) ? await getReceipt(tracked.hash) : null;
+  let task = null, taskError = deploymentError;
+  if (!deploymentError) {
+    try { task = await readTask(client, c); } catch (error) { taskError = error.message; }
   }
-  let task = null, taskError = null;
-  try { task = await readTask(client, c); } catch (error) { taskError = error.message; }
   // History remains inspectable even when the current task is no longer usable.
-  return { mode, task, taskError, previousSession: saved ?? null, originalReceipt, explanation: 'Read only; no model invocation or transaction' };
+  return { mode, task, taskError, deploymentError, previousSession: saved ?? null, originalReceipt, replacementReceipt, explanation: 'Read only; no model invocation or transaction' };
+}
+
+// Shared by the read-only CLI modes: current deployment failure must not hide
+// an original receipt, but an RPC on a different chain must never supply it.
+export async function readConfiguredStatus(client, c, loadSaved, mode = 'status') {
+  checkRpcConfig(c);
+  if (await client.getChainId() !== c.chainId) throw new Error('RPC chain mismatch');
+  const saved = await loadSaved();
+  let deploymentError = null;
+  try { await verifyDeployment(client, c); } catch (error) {
+    if (error.message === 'RPC chain mismatch') throw error;
+    deploymentError = error.message;
+  }
+  return readStatus(client, c, saved, mode, deploymentError);
+}
+
+// The CLI owns its file lock; this session owns authorization, durable progress
+// and accounting for every confirmed transaction, including failed replacements.
+export async function runMiningSession(c, saved, deps) {
+  const { client, saveState, notify = emit, now = Date.now } = deps;
+  checkAuthorization(c, now());
+  if (saved?.inFlight) throw new Error(`Unresolved prior request: ${json(saved.inFlight)}. Query the original hash with status/wallet tx-history; do not resubmit. Reconcile before authorizing a new session.`);
+  // Reusing this authorization after restart cannot reset spent budget.
+  const session = authorizationSession(c, saved, now());
+  const { authorizationId, authorizationFingerprint, startedAt } = session;
+  let { completed, spent } = session;
+  let lastTransaction = saved?.lastTransaction ?? null;
+  const deadline = Math.min(startedAt + c.authorization.maxDurationSeconds * 1000, Date.parse(c.authorization.expiresAt));
+  const persist = async (inFlight = null) => {
+    await saveState({ authorizationId, authorizationFingerprint, startedAt, completed, spent, inFlight, lastTransaction });
+  };
+  const wallet = async (args) => {
+    // Mark before any execute; a crash or timeout cannot silently reset it.
+    if (args[1] === 'execute') await persist({ requestId: args[3], state: 'execute-started' });
+    return deps.wallet(args);
+  };
+  if ((await wallet(['wallet', 'status', '--json'])).status !== 'CONNECTED') throw new Error('Official BAW is not connected; sign in using official auth flow');
+  const chains = await wallet(['wallet', 'chains', '--json']);
+  if (!chains.some(x => String(x.binanceChainId) === String(c.chainId))) throw new Error('Selected chain is not supported by official BAW');
+  const addresses = await wallet(['wallet', 'address', '--json']);
+  if (!addresses.addresses?.some(x => String(x.binanceChainId) === String(c.chainId) && same(x.address, c.walletAddress))) throw new Error('Configured wallet is not the connected BAW wallet on this chain');
+  const confirm = async (preview) => {
+    if (deps.confirm) return deps.confirm(preview);
+    if (!process.stdin.isTTY) return false;
+    const terminal = createInterface({ input: process.stdin, output: process.stdout });
+    try { return await terminal.question(`Confirm exactly this preview by typing CONFIRM ${preview.requestId}: `, { signal: AbortSignal.timeout(Math.max(1, deadline - now())) }) === `CONFIRM ${preview.requestId}`; }
+    finally { terminal.close(); }
+  };
+  await persist();
+  while (completed < c.authorization.maxTasks && now() < deadline) {
+    const remainingGas = () => BigInt(c.authorization.maxGasWei) - spent;
+    if (remainingGas() <= 0n) break;
+    const result = await mineOne(c, { client, wallet, confirm, remainingGas, deadline, model: deps.model, notify,
+      now: () => { const time = now(); if (time >= deadline) throw new Error('Time budget exhausted'); return time; },
+      onBroadcast: tracking => {
+        // The execute-started record already exists. Keep the original hash for restart queries.
+        return persist({ ...tracking, state: 'pending' });
+      },
+    });
+    if (result.gasWei === undefined) { await persist(result); notify(result.state, result); return result; }
+    spent += result.gasWei;
+    if (result.state === 'success') completed++;
+    lastTransaction = result;
+    await persist();
+    if (result.state !== 'success') { notify('stopped', { ...result, completed, spentGasWei: spent }); return result; }
+    notify('success', { ...result, completed, message: completed === 1 ? '已开始挖矿：首笔任务已链上成功发奖' : '任务已链上成功发奖' });
+  }
+  notify('stopped', { completed, spentGasWei: spent, reason: 'Task, time or gas budget reached' });
 }
 
 async function cli() {
@@ -322,71 +454,31 @@ async function cli() {
   }
   if (!['status', 'dry-run', 'run'].includes(mode) || args.length !== 2 || args[0] !== '--config') throw new Error('Invalid command; use --help');
   const configPath = resolve(args[1]);
-  const c = checkConfig(JSON.parse(await readFile(configPath, 'utf8')));
+  const c = JSON.parse(await readFile(configPath, 'utf8'));
+  checkRpcConfig(c);
   const client = createPublicClient({ transport: http(c.rpcUrl, { timeout: 15000, retryCount: 0 }) });
-  await verifyDeployment(client, c);
   const statePath = resolve(dirname(configPath), c.stateFile || '.miner-state/session.local.json');
-  let lock;
-  const lockPath = `${statePath}.lock`;
-  if (mode === 'run') {
-    if (c.deployment.localMocks) throw new Error('Official BAW does not sign local chain 31337; local mocks are for read/dry-run and injected tests only');
-    await mkdir(dirname(statePath), { recursive: true, mode: 0o700 });
-    lock = await open(lockPath, 'wx', 0o600);
-  }
-  try {
-  let saved;
-  try { saved = JSON.parse(await readFile(statePath, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  const loadSaved = async () => {
+    try { return JSON.parse(await readFile(statePath, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  };
   if (mode !== 'run') {
-    emit('stopped', await readStatus(client, c, saved, mode)); return;
+    emit('stopped', await readConfiguredStatus(client, c, loadSaved, mode)); return;
   }
-  checkAuthorization(c);
-  if (saved?.inFlight) throw new Error(`Unresolved prior request: ${json(saved.inFlight)}. Query the original hash with status/wallet tx-history; do not resubmit. Reconcile before authorizing a new session.`);
-  // Reusing this authorization after restart cannot reset spent budget.
-  const session = authorizationSession(c, saved);
-  const { authorizationId, authorizationFingerprint, startedAt } = session;
-  let { completed, spent } = session;
-  const deadline = Math.min(startedAt + c.authorization.maxDurationSeconds * 1000, Date.parse(c.authorization.expiresAt));
-  const persist = async (inFlight = null) => {
-    await mkdir(dirname(statePath), { recursive: true, mode: 0o700 });
-    await writeFile(`${statePath}.tmp`, json({ authorizationId, authorizationFingerprint, startedAt, completed, spent, inFlight }), { mode: 0o600 });
-    await rename(`${statePath}.tmp`, statePath);
-  };
-  const wallet = async (args) => {
-    // Mark before any execute; a crash or timeout cannot silently reset it.
-    if (args[1] === 'execute') await persist({ requestId: args[3], state: 'execute-started' });
-    return unwrapWallet(await runProcess('baw', args, { timeoutMs: 60000 }));
-  };
-  if ((await wallet(['wallet', 'status', '--json'])).status !== 'CONNECTED') throw new Error('Official BAW is not connected; sign in using official auth flow');
-  const chains = await wallet(['wallet', 'chains', '--json']);
-  if (!chains.some(x => String(x.binanceChainId) === String(c.chainId))) throw new Error('Selected chain is not supported by official BAW');
-  const addresses = await wallet(['wallet', 'address', '--json']);
-  if (!addresses.addresses?.some(x => String(x.binanceChainId) === String(c.chainId) && same(x.address, c.walletAddress))) throw new Error('Configured wallet is not the connected BAW wallet on this chain');
-  const confirm = async (preview) => {
-    if (!process.stdin.isTTY) return false;
-    const terminal = createInterface({ input: process.stdin, output: process.stdout });
-    try { return await terminal.question(`Confirm exactly this preview by typing CONFIRM ${preview.requestId}: `, { signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())) }) === `CONFIRM ${preview.requestId}`; }
-    finally { terminal.close(); }
-  };
-  await persist();
-  while (completed < c.authorization.maxTasks && Date.now() < deadline) {
-    const remainingGas = () => BigInt(c.authorization.maxGasWei) - spent;
-    if (remainingGas() <= 0n) break;
-    const result = await mineOne(c, { client, wallet, confirm, remainingGas, deadline,
-      now: () => { const time = Date.now(); if (time >= deadline) throw new Error('Time budget exhausted'); return time; },
-      onBroadcast: ({ hash, requestId, nonce, reservation }) => {
-        // The execute-started record already exists. Keep the original hash for restart queries.
-        return persist({ hash, requestId, nonce, reservation, state: 'pending' });
+  await verifyDeployment(client, c);
+  if (c.deployment.localMocks) throw new Error('Official BAW does not sign local chain 31337; local mocks are for read/dry-run and injected tests only');
+  await mkdir(dirname(statePath), { recursive: true, mode: 0o700 });
+  const lockPath = `${statePath}.lock`;
+  const lock = await open(lockPath, 'wx', 0o600);
+  try {
+    await runMiningSession(c, await loadSaved(), {
+      client,
+      wallet: async args => unwrapWallet(await runProcess('baw', args, { timeoutMs: 60000 })),
+      saveState: async state => {
+        await writeFile(`${statePath}.tmp`, json(state), { mode: 0o600 });
+        await rename(`${statePath}.tmp`, statePath);
       },
     });
-    if (result.state !== 'success') { await persist(result); emit(result.state, result); return; }
-    spent += result.gasWei; completed++;
-    await persist();
-    emit('success', { ...result, completed, message: completed === 1 ? '已开始挖矿：首笔任务已链上成功发奖' : '任务已链上成功发奖' });
-  }
-  emit('stopped', { completed, spentGasWei: spent, reason: 'Task, time or gas budget reached' });
-  } finally {
-    if (lock) { await lock.close(); await rm(lockPath, { force: true }); }
-  }
+  } finally { await lock.close(); await rm(lockPath, { force: true }); }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) cli().catch(error => { emit('stopped', { error: error.message }); process.exitCode = 1; });

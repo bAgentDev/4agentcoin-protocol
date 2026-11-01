@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeAbiParameters, encodeEventTopics, createPublicClient, custom } from 'viem';
+import { fileURLToPath } from 'node:url';
+import { encodeAbiParameters, encodeEventTopics, encodeFunctionData, createPublicClient, custom, keccak256 } from 'viem';
 import {
   POOL_ABI, validateAnswer, assertFresh, checkAuthorization, checkConfig,
   askModel, executeApproved, confirmedReward, mineOne, parseCodexOutput, runProcess, readTask, authorizationSession, hasDeveloperMode, readStatus,
+  readConfiguredStatus, runMiningSession, verifyDeployment,
 } from '../scripts/agent-miner.mjs';
 
 const address = n => `0x${String(n).repeat(40)}`;
@@ -18,7 +20,7 @@ const config = () => ({
   authorization: { consentId: 'ba687e2d-dc62-45e7-ab65-ed41c502e233', confirmedByUser: true, mode: 'single', skipRepeatedConfirmations: false, chainId: 31337, poolAddress: address(2), walletAddress: address(1), tokenId: '0', maxTasks: 1, maxDurationSeconds: 600, maxGasWei: '10000000', maxGasPerTaskWei: '10000000', minGrossWei: '100', expiresAt: new Date(now + 600000).toISOString() },
 });
 const preview = () => ({ requestId: 'request-7', parsedTx: { contractAddress: address(2) }, simulationResult: { simulationCode: '000000000', simulationErrorDetail: null, allowanceChanges: [], authorityChanges: [] }, risks: {}, expiresAt: now + 10000, requireConfirmation: false });
-const receipt = () => ({ status: 'success', gasUsed: 100n, effectiveGasPrice: 2n, logs: [{
+const receipt = () => ({ status: 'success', transactionHash: hash(8), gasUsed: 100n, effectiveGasPrice: 2n, logs: [{
   address: address(2),
   topics: encodeEventTopics({ abi: POOL_ABI, eventName: 'TaskSolved', args: { tokenId: 0n, staker: address(1) } }),
   data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }], [7n, task.gross, task.gross * 3n / 100n, task.gross * 97n / 100n]),
@@ -27,16 +29,21 @@ function fixture({ stale = false, previewData = preview(), approved = true, rece
   let taskReads = 0;
   const calls = [];
   const client = {
+    getChainId: async () => 31337,
+    getCode: async () => '0x6000',
     getBlockNumber: async () => 10n,
     readContract: async ({ functionName }) => {
       if (functionName === 'getTask') { taskReads++; return [task.seed, stale && taskReads > 1 ? 8n : task.nonce, task.power, task.edges]; }
-      return { previewReward: [task.gross, task.gross * 3n / 100n, task.gross * 97n / 100n, 0n], miningOpen: true, stakedBy: address(1), isEligible: true, agentIdOf: hash(2), stakeAgentId: hash(2), identityVerifier: address(5) }[functionName];
+      return { previewReward: [task.gross, task.gross * 3n / 100n, task.gross * 97n / 100n, 0n], miningOpen: true, stakedBy: address(1), isEligible: true, agentIdOf: hash(2), stakeAgentId: hash(2), identityVerifier: address(5), genesis: address(3), token: address(4), miningPool: address(2), POWER_SCALE: 1000000n, decimals: 18, symbol: '4AGC', NODE_COUNT: 16n, SLOT_COUNT: 4n, feeBps: 300n }[functionName];
     },
     estimateGas: async () => 100n, getGasPrice: async () => 2n,
     waitForTransactionReceipt: async () => receiptData,
   };
   const wallet = async (args) => {
     calls.push(args);
+    if (args[1] === 'status') return { status: 'CONNECTED' };
+    if (args[1] === 'chains') return [{ binanceChainId: '31337' }];
+    if (args[1] === 'address') return { addresses: [{ binanceChainId: '31337', address: address(1) }] };
     if (args[1] === 'settings') return { devMode: { enabled: true, expiresAt: Math.floor(now / 1000) + 600 } };
     if (args[1] === 'preview') return previewData;
     if (args[1] === 'execute') return { status: 'BROADCASTED', txHash: hash(8) };
@@ -65,6 +72,16 @@ test('task/time/gas/reward and pool-scoped authorization are mandatory', () => {
   const c = config();
   assert.doesNotThrow(() => checkAuthorization(c, now));
   for (const change of [{ confirmedByUser: false }, { maxTasks: 0 }, { maxTasks: 2 }, { maxDurationSeconds: 0 }, { maxGasWei: '0' }, { minGrossWei: '0' }, { poolAddress: address(9) }, { tokenId: '1' }, { expiresAt: '2000-01-01' }]) assert.throws(() => checkAuthorization({ ...c, authorization: { ...c.authorization, ...change } }, now));
+});
+
+test('truthy non-boolean authorization never reaches the wallet even with a waiver', async () => {
+  for (const confirmedByUser of ['false', 'true', 1, {}, []]) {
+    const c = config();
+    c.authorization = { ...c.authorization, confirmedByUser, skipRepeatedConfirmations: true };
+    const f = fixture();
+    await assert.rejects(mineOne(c, f.deps), /User authorization/);
+    assert.equal(f.calls.length, 0);
+  }
 });
 
 test('reordered or annotated authorization preserves spending; changed scope needs new consent', () => {
@@ -203,4 +220,165 @@ test('broadcast timeout remains pending and never repeats execute', async () => 
   assert.equal(result.state, 'pending');
   assert.equal(result.hash, hash(8));
   assert.equal(f.calls.filter(x => x[1] === 'execute').length, 1);
+});
+
+test('repriced task persists the actual hash, reason and gas and counts one completion', async () => {
+  const f = fixture();
+  const replacementReceipt = { ...receipt(), transactionHash: hash(9), gasUsed: 150n, effectiveGasPrice: 3n };
+  f.deps.client.waitForTransactionReceipt = async ({ onReplaced }) => {
+    onReplaced({ reason: 'repriced', transaction: { hash: hash(9) }, transactionReceipt: replacementReceipt });
+    return replacementReceipt;
+  };
+  const writes = [];
+  await runMiningSession(config(), null, { ...f.deps, saveState: async state => { await Promise.resolve(); writes.push(structuredClone(state)); } });
+  const saved = writes.at(-1);
+  assert.equal(saved.completed, 1);
+  assert.equal(saved.spent, 450n);
+  assert.equal(saved.inFlight, null);
+  assert.equal(saved.lastTransaction.hash, hash(9));
+  assert.equal(saved.lastTransaction.originalHash, hash(8));
+  assert.equal(saved.lastTransaction.replacementReason, 'repriced');
+  assert.equal(saved.lastTransaction.gasWei, 450n);
+  assert.ok(writes.some(state => state.inFlight?.hash === hash(9) && state.inFlight.replacementReason === 'repriced'));
+  assert.equal(f.calls.filter(x => x[1] === 'execute').length, 1);
+});
+
+test('cancelled or different replacement stops the session, spends gas and never counts work', async () => {
+  for (const reason of ['cancelled', 'replaced']) {
+    const c = config(); c.authorization = { ...c.authorization, mode: 'bounded', maxTasks: 3, maxGasWei: '63000' };
+    const f = fixture();
+    // Even a matching TaskSolved log in a different call cannot count as this authorized call.
+    const replacementReceipt = { ...receipt(), transactionHash: hash(9), gasUsed: 21000n, effectiveGasPrice: 3n, ...(reason === 'cancelled' ? { logs: [] } : {}) };
+    f.deps.client.waitForTransactionReceipt = async ({ onReplaced }) => {
+      onReplaced({ reason, transaction: { hash: hash(9) }, transactionReceipt: replacementReceipt });
+      return replacementReceipt;
+    };
+    const writes = [], notifications = [];
+    const result = await runMiningSession(c, null, { ...f.deps, saveState: async state => writes.push(structuredClone(state)), notify: (state, data) => notifications.push({ state, ...data }) });
+    assert.equal(result.state, 'stopped');
+    const saved = writes.at(-1);
+    assert.equal(saved.completed, 0);
+    assert.equal(saved.spent, 63000n);
+    assert.equal(saved.inFlight, null);
+    assert.equal(saved.lastTransaction.hash, hash(9));
+    assert.equal(saved.lastTransaction.replacementReason, reason);
+    assert.equal(notifications.some(item => item.state === 'success'), false);
+    await runMiningSession(c, saved, { ...f.deps, saveState: async state => writes.push(structuredClone(state)) });
+    assert.equal(f.calls.filter(x => x[1] === 'execute').length, 1);
+    assert.equal(writes.at(-1).spent, 63000n);
+    assert.equal(writes.at(-1).completed, 0);
+  }
+});
+
+test('different receipt without replacement notice requires the exact authorized payload', async () => {
+  for (const match of [true, false, 'unavailable']) {
+    const f = fixture({ receiptData: { ...receipt(), transactionHash: hash(9) } });
+    const input = encodeFunctionData({ abi: POOL_ABI, functionName: 'submitTask', args: [0n, 7n, validateAnswer(colors, task.edges), 100n] });
+    f.deps.client.getTransaction = async ({ hash: tx }) => {
+      assert.equal(tx, hash(9));
+      if (match === 'unavailable') throw new Error('RPC unavailable');
+      return { from: address(1), to: address(2), value: 0n, input: match ? input : '0x1234' };
+    };
+    const writes = []; f.deps.onBroadcast = async tracking => writes.push(structuredClone(tracking));
+    const result = await mineOne(config(), f.deps);
+    assert.equal(result.hash, hash(9));
+    assert.equal(result.originalHash, hash(8));
+    assert.equal(result.gasWei, 200n);
+    assert.equal(result.state, match === true ? 'success' : 'stopped');
+    assert.equal(writes.at(-1).gasWei, 200n);
+    assert.equal(writes.at(-1).hash, hash(9));
+    assert.equal(f.calls.filter(x => x[1] === 'execute').length, 1);
+  }
+});
+
+test('replacement tracking survives receipt timeout and blocks a restarted session', async () => {
+  const f = fixture();
+  f.deps.client.waitForTransactionReceipt = async ({ onReplaced }) => {
+    onReplaced({ reason: 'repriced', transaction: { hash: hash(9) } });
+    throw new Error('receipt timeout');
+  };
+  const writes = [];
+  const deps = { ...f.deps, saveState: async state => writes.push(structuredClone(state)) };
+  const result = await runMiningSession(config(), null, deps);
+  assert.equal(result.state, 'pending');
+  const saved = writes.at(-1);
+  assert.equal(saved.inFlight.hash, hash(9));
+  assert.equal(saved.inFlight.originalHash, hash(8));
+  assert.equal(saved.inFlight.replacementReason, 'repriced');
+  await assert.rejects(runMiningSession(config(), saved, deps), /Unresolved prior request/);
+  assert.equal(f.calls.filter(x => x[1] === 'execute').length, 1);
+});
+
+test('failure to persist a replacement cannot become a success or a second execute', async () => {
+  const f = fixture();
+  f.deps.client.waitForTransactionReceipt = async ({ onReplaced }) => {
+    onReplaced({ reason: 'repriced', transaction: { hash: hash(9) }, transactionReceipt: { ...receipt(), transactionHash: hash(9) } });
+    return { ...receipt(), transactionHash: hash(9) };
+  };
+  f.deps.onBroadcast = async tracking => { if (tracking.hash === hash(9)) throw new Error('state disk full'); };
+  await assert.rejects(mineOne(config(), f.deps), /state disk full/);
+  assert.equal(f.calls.filter(x => x[1] === 'execute').length, 1);
+});
+
+test('CLI read-only entry keeps original and replacement receipts when deployment binding changes', async () => {
+  for (const mode of ['status', 'dry-run']) {
+    const c = config(); c.deployment.codeHashes = Object.fromEntries(Object.keys(c.deployment.codeHashes).map(key => [key, keccak256('0x6000')]));
+    const f = fixture();
+    let chainVerified = false, stateLoaded = false, taskReads = 0;
+    f.deps.client.getChainId = async () => { chainVerified = true; return 31337; };
+    const priorRead = f.deps.client.readContract;
+    f.deps.client.readContract = async args => {
+      if (args.functionName === 'getTask') taskReads++;
+      return args.functionName === 'identityVerifier' ? address(9) : priorRead(args);
+    };
+    const receipts = [];
+    f.deps.client.getTransactionReceipt = async ({ hash: tx }) => { receipts.push(tx); return { ...receipt(), transactionHash: tx }; };
+    const saved = { inFlight: { originalHash: hash(8), hash: hash(9), replacementReason: 'repriced' }, completed: 0 };
+    const result = await readConfiguredStatus(f.deps.client, c, async () => { assert.equal(chainVerified, true); stateLoaded = true; return saved; }, mode);
+    assert.equal(stateLoaded, true);
+    assert.match(result.deploymentError, /Deployment bindings/);
+    assert.equal(result.originalReceipt.transactionHash, hash(8));
+    assert.equal(result.replacementReceipt.transactionHash, hash(9));
+    assert.equal(result.previousSession, saved);
+    assert.deepEqual(receipts, [hash(8), hash(9)]);
+    assert.equal(taskReads, 0);
+    assert.equal(f.calls.length, 0);
+    await assert.rejects(verifyDeployment(f.deps.client, c), /Deployment bindings/);
+  }
+});
+
+test('CLI read-only entry reports disabled deployment without hiding saved history', async () => {
+  const c = config(); c.deployment.verified = false;
+  const f = fixture();
+  f.deps.client.getTransactionReceipt = async () => receipt();
+  const saved = { lastTransaction: { hash: hash(8), gasWei: '200' } };
+  const result = await readConfiguredStatus(f.deps.client, c, async () => saved);
+  assert.match(result.deploymentError, /Deployment has not been verified/);
+  assert.equal(result.originalReceipt.status, 'success');
+  assert.equal(result.task, null);
+  assert.equal(f.calls.length, 0);
+});
+
+test('CLI read-only entry refuses a different RPC chain before loading or querying history', async () => {
+  const f = fixture(); f.deps.client.getChainId = async () => 56;
+  let reads = 0;
+  f.deps.client.getTransactionReceipt = async () => { reads++; return receipt(); };
+  await assert.rejects(readConfiguredStatus(f.deps.client, config(), async () => { reads++; return {}; }), /RPC chain mismatch/);
+  assert.equal(reads, 0);
+  assert.equal(f.calls.length, 0);
+});
+
+test('RPC chain changing during deployment checks cannot be treated as a recoverable deployment error', async () => {
+  const f = fixture(); let chainReads = 0, receiptReads = 0;
+  f.deps.client.getChainId = async () => ++chainReads === 1 ? 31337 : 56;
+  f.deps.client.getTransactionReceipt = async () => { receiptReads++; return receipt(); };
+  await assert.rejects(readConfiguredStatus(f.deps.client, config(), async () => ({ inFlight: { hash: hash(8) } })), /RPC chain mismatch/);
+  assert.equal(receiptReads, 0);
+});
+
+test('actual run CLI stays fail-closed on the unconfigured package example', async () => {
+  await assert.rejects(runProcess(process.execPath, [
+    fileURLToPath(new URL('../scripts/agent-miner.mjs', import.meta.url)), 'run', '--config',
+    fileURLToPath(new URL('../assets/miner-config.example.json', import.meta.url)),
+  ], { timeoutMs: 5000 }), /Missing verified walletAddress/);
 });

@@ -61,7 +61,7 @@ npm ci --ignore-scripts --prefix skills/4agentcoin
 npm test --prefix skills/4agentcoin
 ```
 
-The current Skill regression suite has 17 tests. Its injected tests do not spend model credits, sign transactions or broadcast to a network. See the Skill reference for actual runner configuration and its authorization, budget and pending-transaction rules.
+The current Skill regression suite has 28 tests. It covers strict user-confirmation values, actual transaction hashes and gas after repricing or cancellation, restart holds, and read-only history when current deployment checks fail. Its injected tests do not spend model credits, sign transactions or broadcast to a network. See the Skill reference for actual runner configuration and its authorization, budget and pending-transaction rules.
 
 ## License
 
