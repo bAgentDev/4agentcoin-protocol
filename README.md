@@ -4,7 +4,7 @@ This public repository contains the 4AgentCoin smart contracts and Agent Skill. 
 
 ## Current status
 
-- The project adapter and core contracts are deployed on BSC mainnet (chain 56). The eight deployment/binding receipts, runtime code, owners, proxy implementations and protocol bindings have been checked against the chain. Minting, staking and mining remain closed, and the BNB/4AGC liquidity pair has not been created.
+- The project adapter and core contracts are deployed on BSC mainnet (chain 56). The eight deployment/binding receipts, runtime code, owners, proxy implementations and protocol bindings have been checked against the chain. Genesis minting is open; staking and mining remain closed, and the BNB/4AGC liquidity pair has not been created.
 - GenesisMiner and MiningPool use UUPS implementations behind ERC1967 proxies. FourAgentCoin remains a fixed contract. The local identity mock is for tests and explicitly local demonstrations only.
 - Local build and regression tests are available, with separate opt-in fork checks against the actual BSC Registry and PancakeSwap V2. These checks are not a security audit or proof that every operation has been validated with a live wallet, paid model or funded production pool.
 - Installation does not connect a wallet, grant spending authority or open protocol functions. The user still configures their own wallet, miner and explicit work consent.
@@ -89,7 +89,7 @@ Use the NFT and Pool proxy addresses for business operations. Deployment created
 
 The eight mainnet transactions completed in BSC blocks 131063845–131063883: the real `BinanceAgentIdentityAdapter`, two implementations, two atomically initialized proxies, the fixed Token and two Pool bindings. They used 8,761,083 gas at 0.05 gwei, for an actual total network fee of **0.00043805415 BNB**; every transaction's value was zero. LP principal, LP initialization and later manual operations are outside this cost. The recorded 0.00065759215 BNB preflight was a simulation with a 150% gas estimate multiplier, not the actual charge.
 
-The deployment script verifies the official Registry runtime and identity configuration pointer before creating the adapter. Minting, staking and mining remain closed; LP activation is a later manual operation. These eight transactions are already deployed: do not rerun the creation script to manage them. Use the reviewed addresses and the appropriate operation script.
+The deployment script verifies the official Registry runtime and identity configuration pointer before creating the adapter. The eight creation and binding transactions initialized all gates closed. The administrator subsequently opened only Genesis minting with [`setMintOpen(true)`](https://bscscan.com/tx/0xdbca610d9f10ef408674ae479ae060e5e16758cffe193d48dc713ecacef57fc2) in block 131168908 on November 2, 2026. Its value was zero and its actual network fee was 0.0000019359 BNB. Staking, mining and LP activation remain separate manual operations. Do not rerun the creation script to manage the deployed contracts; use the reviewed proxy addresses and the appropriate operation.
 
 From `contracts/`, after independently verifying the actual deployment and reviewing the manifest, the read-only check is:
 

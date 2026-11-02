@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "enabled": true,
   "chainId": 56,
-  "status": "mainnet_deployed_state_verified_all_gates_closed_no_lp",
+  "status": "genesis_mint_open_staking_mining_closed_no_lp",
   "roles": {
     "admin": "0x4a395c91484544cec82424cc23af20239feea2d4",
     "reserveRecipient": "0x4a395c91484544cec82424cc23af20239feea2d4",
@@ -235,7 +235,7 @@
     "deploymentMode": "uups_genesis_pool_fixed_token",
     "initialBaseRewardWei": "2100000000000000000",
     "imageURI": "https://4agentcoin.pages.dev/nft/genesis-miner.png",
-    "mintOpen": false,
+    "mintOpen": true,
     "stakingOpen": false,
     "miningOpen": false,
     "lpTreasuryTaxExempt": true,
@@ -736,6 +736,45 @@
       "sameBlockWithinPortfolio": true,
       "allReservedPowerMicroHP": 150000000,
       "chainTransactionsSent": 0
+    }
+  },
+  "launch": {
+    "mint": {
+      "transactionHash": "0xdbca610d9f10ef408674ae479ae060e5e16758cffe193d48dc713ecacef57fc2",
+      "blockNumber": 131168908,
+      "blockHash": "0x9ed573f30a6ec83b7282818a6a77a98d24b3e1a3c33dbda1ef2c097752281b27",
+      "timestampUTC": "2026-11-02T03:27:53+00:00",
+      "sender": "0x4a395c91484544cec82424cc23af20239feea2d4",
+      "target": "0xaad237c08b4c44ea8fd4eea02bfc827e94459948",
+      "function": "setMintOpen(bool)",
+      "arguments": [
+        true
+      ],
+      "input": "0xf8004d310000000000000000000000000000000000000000000000000000000000000001",
+      "nonce": 8,
+      "valueWei": "0",
+      "receiptStatus": 1,
+      "gasLimit": "60000",
+      "gasUsed": "38718",
+      "effectiveGasPriceWei": "50000000",
+      "networkFeeWei": "1935900000000",
+      "mintOpenChangedEventVerified": true,
+      "canonicalBlockHashVerified": true,
+      "firstReviewBlockNumber": 131169286,
+      "confirmationsAtFirstReview": 379,
+      "stakingOpenAtReview": false,
+      "miningOpenAtReview": false,
+      "independentRpcVerification": {
+        "rpcUrl": "https://bsc-dataseed.bnbchain.org",
+        "stateBlockNumber": 131169572,
+        "confirmations": 665,
+        "receiptAndCanonicalBlockMatched": true,
+        "mintOpen": true,
+        "stakingOpen": false,
+        "miningOpen": false,
+        "pancakePair": "0x0000000000000000000000000000000000000000"
+      },
+      "transactionUrl": "https://bscscan.com/tx/0xdbca610d9f10ef408674ae479ae060e5e16758cffe193d48dc713ecacef57fc2"
     }
   }
 }
